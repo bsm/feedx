@@ -1,5 +1,5 @@
 inherit_from:
-  - https://storage.googleapis.com/bsm-misc/rubocop.yml
+  - https://storage.googleapis.com/bsm-misc/rubocop.yml?1541767352
 
 AllCops:
   TargetRubyVersion: "2.2"
