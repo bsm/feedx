@@ -2,5 +2,3 @@ language: ruby
 rvm:
   - 2.5
   - 2.4
-before_install:
-  - gem install bundler --version 1.6.4 # keep in sync with BUNDLED WITH version in Gemfile.lock
