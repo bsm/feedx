@@ -4,13 +4,22 @@ require 'bfs'
 module Feedx
   # Pushes a relation as a protobuf encoded stream to an S3 location.
   class Pusher
-    # @param [Enumerable,ActiveRecord::Relation] relation to stream.
+    # See constructor.
+    def self.perform(url, opts={}, &block)
+      new(url, opts, &block).perform
+    end
+
     # @param [String] url the destination URL.
     # @param [Hash] opts options
+    # @option opts [Enumerable,ActiveRecord::Relation] :enum relation or enumerator to stream.
     # @option opts [Symbol,Class<Feedx::Format::Abstract>] :format custom formatter. Default: from file extension.
     # @option opts [Symbol,Class<Feedx::Compression::Abstract>] :compress enable compression. Default: from file extension.
-    def initialize(relation, url, opts={})
-      @relation = relation
+    # @yield A block factory to generate the relation or enumerator.
+    # @yieldreturn [Enumerable,ActiveRecord::Relation] the relation or enumerator to stream.
+    def initialize(url, opts={}, &block)
+      @enum = opts[:enum] || block
+      raise ArgumentError, "#{self.class.name}.new expects an :enum option or a block factory" unless @enum
+
       @blob     = BFS::Blob.new(url)
       @format   = detect_format(opts[:format])
       @compress = detect_compress(opts[:compress])
@@ -54,9 +63,10 @@ module Feedx
     end
 
     def write_to(io)
-      stream = @format.new(io)
-      enum = @relation.respond_to?(:find_each) ? :find_each : :each
-      @relation.send(enum) {|rec| stream.write(rec) }
+      stream   = @format.new(io)
+      relation = @enum.is_a?(Proc) ? @enum.call : @enum
+      iterator = relation.respond_to?(:find_each) ? :find_each : :each
+      relation.send(iterator) {|rec| stream.write(rec) }
     end
   end
 end
