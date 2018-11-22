@@ -13,8 +13,8 @@ RSpec.describe Feedx::Pusher do
     end
   end
 
-  let :relation do
-    %w[x y z].map {|_t| model.new('t') } * 100
+  let :enumerable do
+    %w[x y z].map {|t| model.new(t) } * 100
   end
 
   let(:tempdir) { Dir.mktmpdir }
@@ -22,35 +22,39 @@ RSpec.describe Feedx::Pusher do
 
   it 'should reject invalid inputs' do
     expect do
-      described_class.new relation, "file://#{tempdir}/file.txt"
+      described_class.perform "file://#{tempdir}/file.txt", enum: enumerable
     end.to raise_error(/unable to detect format/)
   end
 
   it 'should push compressed JSON' do
-    pusher = described_class.new relation, "file://#{tempdir}/file.jsonz"
-    size   = pusher.perform
-    expect(size).to be_within(20).of(140)
+    size = described_class.perform "file://#{tempdir}/file.jsonz", enum: enumerable
+    expect(size).to be_within(20).of(166)
     expect(File.size("#{tempdir}/file.jsonz")).to eq(size)
   end
 
   it 'should push plain JSON' do
-    pusher = described_class.new relation, "file://#{tempdir}/file.json"
-    size = pusher.perform
+    size = described_class.perform "file://#{tempdir}/file.json", enum: enumerable
     expect(size).to be_within(0).of(15900)
     expect(File.size("#{tempdir}/file.json")).to eq(size)
   end
 
   it 'should push compressed PB' do
-    pusher = described_class.new relation, "file://#{tempdir}/file.pbz"
-    size = pusher.perform
+    size = described_class.perform "file://#{tempdir}/file.pbz", enum: enumerable
     expect(size).to be_within(20).of(41)
     expect(File.size("#{tempdir}/file.pbz")).to eq(size)
   end
 
   it 'should push plain PB' do
-    pusher = described_class.new relation, "file://#{tempdir}/file.pb"
-    size = pusher.perform
+    size = described_class.perform "file://#{tempdir}/file.pb", enum: enumerable
     expect(size).to be_within(0).of(1200)
     expect(File.size("#{tempdir}/file.pb")).to eq(size)
+  end
+
+  it 'should support factories' do
+    size = described_class.perform("file://#{tempdir}/file.json") do
+      [model.new('xy')] * 10
+    end
+    expect(size).to be_within(0).of(540)
+    expect(File.size("#{tempdir}/file.json")).to eq(size)
   end
 end
