@@ -2,3 +2,6 @@ language: ruby
 rvm:
   - 2.5
   - 2.4
+before_install:
+  - rvm @default,@global do gem uninstall bundler
+  - gem install bundle --version 1.6.4 # keep in sync with BUNDLED WITH version in Gemfile.lock
