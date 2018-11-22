@@ -26,6 +26,18 @@ RSpec.describe Feedx::Pusher do
     end.to raise_error(/unable to detect format/)
   end
 
+  it 'should accept callable relation factory' do
+    calls = 0
+
+    pusher = described_class.new -> {
+      calls += 1
+      relation
+    }, "file://#{tempdir}/file.json"
+
+    expect { pusher.perform }.to change{ calls }.from(0).to(1)
+    expect { pusher.perform }.to change{ calls }.from(1).to(2)
+  end
+
   it 'should push compressed JSON' do
     pusher = described_class.new relation, "file://#{tempdir}/file.jsonz"
     size   = pusher.perform

@@ -4,7 +4,7 @@ require 'bfs'
 module Feedx
   # Pushes a relation as a protobuf encoded stream to an S3 location.
   class Pusher
-    # @param [Enumerable,ActiveRecord::Relation] relation to stream.
+    # @param [Enumerable,ActiveRecord::Relation,Proc] relation to stream. Proc must return either Enumerable or ActiveRecord::Relation.
     # @param [String] url the destination URL.
     # @param [Hash] opts options
     # @option opts [Symbol,Class<Feedx::Format::Abstract>] :format custom formatter. Default: from file extension.
@@ -55,8 +55,9 @@ module Feedx
 
     def write_to(io)
       stream = @format.new(io)
-      enum = @relation.respond_to?(:find_each) ? :find_each : :each
-      @relation.send(enum) {|rec| stream.write(rec) }
+      rel = @relation.respond_to?(:call) ? @relation.call : @relation
+      enum = rel.respond_to?(:find_each) ? :find_each : :each
+      rel.send(enum) {|rec| stream.write(rec) }
     end
   end
 end
