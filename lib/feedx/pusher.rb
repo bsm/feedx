@@ -4,6 +4,8 @@ require 'bfs'
 module Feedx
   # Pushes a relation as a protobuf encoded stream to an S3 location.
   class Pusher
+    autoload :Recurring, 'feedx/pusher/recurring'
+
     # See constructor.
     def self.perform(url, opts={}, &block)
       new(url, opts, &block).perform
@@ -25,11 +27,16 @@ module Feedx
       @compress = detect_compress(opts[:compress])
     end
 
-    def perform
+    def perform(enum=build_enum)
       @blob.create do |io|
-        @compress.wrap(io) {|w| write_to(w) }
+        @compress.wrap(io) {|w| write_all(enum, w) }
       end
       @blob.info.size
+    end
+
+    # @return [Enumerable,ActiveRecord::Relation] the relation or enumerator.
+    def build_enum
+      @enum.is_a?(Proc) ? @enum.call : @enum
     end
 
     private
@@ -62,11 +69,10 @@ module Feedx
       end
     end
 
-    def write_to(io)
+    def write_all(enum, io)
       stream   = @format.new(io)
-      relation = @enum.is_a?(Proc) ? @enum.call : @enum
-      iterator = relation.respond_to?(:find_each) ? :find_each : :each
-      relation.send(iterator) {|rec| stream.write(rec) }
+      iterator = enum.respond_to?(:find_each) ? :find_each : :each
+      enum.send(iterator) {|rec| stream.write(rec) }
     end
   end
 end

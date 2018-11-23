@@ -34,7 +34,7 @@ RSpec.describe Feedx::Pusher do
 
   it 'should push plain JSON' do
     size = described_class.perform "file://#{tempdir}/file.json", enum: enumerable
-    expect(size).to be_within(0).of(15900)
+    expect(size).to eq(15900)
     expect(File.size("#{tempdir}/file.json")).to eq(size)
   end
 
@@ -46,15 +46,15 @@ RSpec.describe Feedx::Pusher do
 
   it 'should push plain PB' do
     size = described_class.perform "file://#{tempdir}/file.pb", enum: enumerable
-    expect(size).to be_within(0).of(1200)
+    expect(size).to eq(1200)
     expect(File.size("#{tempdir}/file.pb")).to eq(size)
   end
 
   it 'should support factories' do
     size = described_class.perform("file://#{tempdir}/file.json") do
-      [model.new('xy')] * 10
+      enumerable
     end
-    expect(size).to be_within(0).of(540)
+    expect(size).to eq(15900)
     expect(File.size("#{tempdir}/file.json")).to eq(size)
   end
 end
