@@ -26,7 +26,7 @@ module Feedx
           registry[name] = stored
         end
 
-        enum   = stored[:pusher].enum
+        enum   = stored[:pusher].build_enum
         latest = stored[:check].call(enum).to_f
         return -1 unless stored[:revision] < latest
 

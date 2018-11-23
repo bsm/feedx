@@ -27,15 +27,15 @@ module Feedx
       @compress = detect_compress(opts[:compress])
     end
 
-    def perform(enum=self.enum)
+    def perform(enum=build_enum)
       @blob.create do |io|
-        @compress.wrap(io) {|w| write_enum(enum, w) }
+        @compress.wrap(io) {|w| write_all(enum, w) }
       end
       @blob.info.size
     end
 
     # @return [Enumerable,ActiveRecord::Relation] the relation or enumerator.
-    def enum
+    def build_enum
       @enum.is_a?(Proc) ? @enum.call : @enum
     end
 
@@ -69,7 +69,7 @@ module Feedx
       end
     end
 
-    def write_enum(enum, io)
+    def write_all(enum, io)
       stream   = @format.new(io)
       iterator = enum.respond_to?(:find_each) ? :find_each : :each
       enum.send(iterator) {|rec| stream.write(rec) }
