@@ -13,7 +13,7 @@ Gem::Specification.new do |s|
   s.require_paths = ['lib']
   s.required_ruby_version = '>= 2.2'
 
-  s.add_dependency 'bfs'
+  s.add_dependency 'bfs', '>= 0.3.3'
 
   s.add_development_dependency 'bundler'
   s.add_development_dependency 'pbio'
