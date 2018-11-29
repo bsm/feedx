@@ -4,7 +4,7 @@ require 'bfs'
 module Feedx
   # Pushes a relation as a protobuf encoded stream to an S3 location.
   class Pusher
-    META_LAST_MODIFIED = 'X-Feedx-Pusher-Last-Modified'.freeze
+    META_LAST_MODIFIED = 'x-feedx-pusher-last-modified'.freeze
 
     # See constructor.
     def self.perform(url, opts={}, &block)
