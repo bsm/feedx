@@ -4,8 +4,6 @@ require 'bfs'
 module Feedx
   # Pushes a relation as a protobuf encoded stream to an S3 location.
   class Pusher
-    autoload :Recurring, 'feedx/pusher/recurring'
-
     META_LAST_MODIFIED = 'X-Feedx-Pusher-Last-Modified'.freeze
 
     # See constructor.
