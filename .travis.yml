@@ -3,6 +3,8 @@ matrix:
     - language: ruby
       rvm:
         - 2.5
+    - language: ruby
+      rvm:
         - 2.4
     - language: go
       go:
