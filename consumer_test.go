@@ -57,7 +57,7 @@ var _ = Describe("Consumer", func() {
 	})
 
 	It("should sync and retrieve feeds from remote", func() {
-		subject, err := feedx.OpenConsumer(ctx, "mem:///path/to/file.jsonz", nil, pfn)
+		subject, err := feedx.NewConsumer(ctx, "mem:///path/to/file.jsonz", nil, pfn)
 		Expect(err).NotTo(HaveOccurred())
 		defer subject.Close()
 

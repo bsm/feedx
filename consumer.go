@@ -24,8 +24,9 @@ type ConsumerOptions struct {
 	// Default: auto-detected from URL path.
 	Compression Compression
 
-	// OnError callback is triggered on sync errors.
-	OnError func(error)
+	// AfterSync callbacks are triggered after each sync, receiving
+	// the updated status and error (if occurred).
+	AfterSync func(updated bool, bool error)
 }
 
 func (o *ConsumerOptions) norm(name string) error {
@@ -89,7 +90,7 @@ func NewConsumer(ctx context.Context, srcURL string, opt *ConsumerOptions, parse
 	}
 
 	// run initial sync
-	if err := f.sync(true); err != nil {
+	if _, err := f.sync(true); err != nil {
 		_ = f.Close()
 		return nil, err
 	}
@@ -139,12 +140,12 @@ func (f *consumer) Close() error {
 	return f.src.Close()
 }
 
-func (f *consumer) sync(force bool) error {
+func (f *consumer) sync(force bool) (bool, error) {
 	f.lastCheck.Store(time.Now())
 
 	info, err := f.src.Head(f.ctx)
 	if err != nil {
-		return err
+		return false, err
 	}
 
 	// calculate last modified time
@@ -152,41 +153,41 @@ func (f *consumer) sync(force bool) error {
 
 	// skip update if not forced or modified
 	if msec == atomic.LoadInt64(&f.lastModMs) && !force {
-		return nil
+		return false, nil
 	}
 
 	// open remote for reading
 	r, err := f.src.Open(f.ctx)
 	if err != nil {
-		return err
+		return false, err
 	}
 	defer r.Close()
 
 	// wrap in compressed reader
 	c, err := f.opt.Compression.NewReader(r)
 	if err != nil {
-		return err
+		return false, err
 	}
 	defer c.Close()
 
 	// open decoder
 	d, err := f.opt.Format.NewDecoder(c)
 	if err != nil {
-		return err
+		return false, err
 	}
 	defer f.Close()
 
 	// parse feed
 	data, size, err := f.parse(d)
 	if err != nil {
-		return err
+		return false, err
 	}
 
 	// update stores
 	f.data.Store(data)
 	atomic.StoreInt64(&f.size, size)
 	atomic.StoreInt64(&f.lastModMs, msec)
-	return nil
+	return true, nil
 }
 
 func (f *consumer) loop() {
@@ -198,9 +199,8 @@ func (f *consumer) loop() {
 		case <-f.ctx.Done():
 			return
 		case <-ticker.C:
-			if err := f.sync(false); err != nil && f.opt.OnError != nil {
-				f.opt.OnError(err)
-			}
+			updated, err := f.sync(false)
+			f.opt.AfterSync(updated, err)
 		}
 	}
 }
