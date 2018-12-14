@@ -26,7 +26,7 @@ type ConsumerOptions struct {
 
 	// AfterSync callbacks are triggered after each sync, receiving
 	// the updated status and error (if occurred).
-	AfterSync func(updated bool, bool error)
+	AfterSync func(updated bool, err error)
 }
 
 func (o *ConsumerOptions) norm(name string) error {
