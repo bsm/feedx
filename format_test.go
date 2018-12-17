@@ -11,12 +11,6 @@ import (
 )
 
 var _ = Describe("Format", func() {
-	msg := &tbp.Message{
-		Name:         "Joe",
-		TrueScotsman: true,
-		Hilarity:     tbp.Message_BILL_BAILEY,
-	}
-
 	runSharedTest := func(subject feedx.Format) {
 		buf := new(bytes.Buffer)
 
@@ -24,8 +18,9 @@ var _ = Describe("Format", func() {
 		Expect(err).NotTo(HaveOccurred())
 		defer enc.Close()
 
-		Expect(enc.Encode(msg)).To(Succeed())
-		Expect(enc.Encode(msg)).To(Succeed())
+		fix := fixture
+		Expect(enc.Encode(&fix)).To(Succeed())
+		Expect(enc.Encode(&fix)).To(Succeed())
 		Expect(enc.Close()).To(Succeed())
 
 		dec, err := subject.NewDecoder(buf)

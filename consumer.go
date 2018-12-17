@@ -2,27 +2,19 @@ package feedx
 
 import (
 	"context"
-	"fmt"
-	"strconv"
 	"sync/atomic"
 	"time"
 
 	"github.com/bsm/bfs"
 )
 
-// ConsumerOptions configure the Puller instance.
+// ConsumerOptions configure the consumer instance.
 type ConsumerOptions struct {
-	// The interval used by Puller to check the remote changes.
+	ReaderOptions
+
+	// The interval used by consumer to check the remote changes.
 	// Default: 1m
 	Interval time.Duration
-
-	// Format specifies the format
-	// Default: auto-detected from URL path.
-	Format Format
-
-	// Compression specifies the compression type.
-	// Default: auto-detected from URL path.
-	Compression Compression
 
 	// AfterSync callbacks are triggered after each sync, receiving
 	// the updated status and error (if occurred).
@@ -30,18 +22,9 @@ type ConsumerOptions struct {
 }
 
 func (o *ConsumerOptions) norm(name string) error {
+	o.ReaderOptions.norm(name)
 	if o.Interval <= 0 {
 		o.Interval = time.Minute
-	}
-	if o.Format == nil {
-		o.Format = DetectFormat(name)
-
-		if o.Format == nil {
-			return fmt.Errorf("feedx: unable to detect format from %q", name)
-		}
-	}
-	if o.Compression == nil {
-		o.Compression = DetectCompression(name)
 	}
 	return nil
 }
@@ -65,28 +48,38 @@ type Consumer interface {
 }
 
 // NewConsumer starts a new feed consumer.
-func NewConsumer(ctx context.Context, srcURL string, opt *ConsumerOptions, parse ParseFunc) (Consumer, error) {
-	src, err := bfs.NewObject(ctx, srcURL)
+func NewConsumer(ctx context.Context, remoteURL string, opt *ConsumerOptions, parse ParseFunc) (Consumer, error) {
+	remote, err := bfs.NewObject(ctx, remoteURL)
 	if err != nil {
 		return nil, err
 	}
 
+	csm, err := NewConsumerForRemote(ctx, remote, opt, parse)
+	if err != nil {
+		_ = remote.Close()
+		return nil, err
+	}
+	csm.(*consumer).ownRemote = true
+	return csm, nil
+}
+
+// NewConsumerForRemote starts a new feed consumer with a remote.
+func NewConsumerForRemote(ctx context.Context, remote *bfs.Object, opt *ConsumerOptions, parse ParseFunc) (Consumer, error) {
 	var o ConsumerOptions
 	if opt != nil {
 		o = *opt
 	}
-	if err := o.norm(src.Name()); err != nil {
-		_ = src.Close()
+	if err := o.norm(remote.Name()); err != nil {
 		return nil, err
 	}
 
 	ctx, stop := context.WithCancel(ctx)
 	f := &consumer{
-		src:   src,
-		opt:   o,
-		ctx:   ctx,
-		stop:  stop,
-		parse: parse,
+		remote: remote,
+		opt:    o,
+		ctx:    ctx,
+		stop:   stop,
+		parse:  parse,
 	}
 
 	// run initial sync
@@ -102,7 +95,9 @@ func NewConsumer(ctx context.Context, srcURL string, opt *ConsumerOptions, parse
 }
 
 type consumer struct {
-	src  *bfs.Object
+	remote    *bfs.Object
+	ownRemote bool
+
 	opt  ConsumerOptions
 	ctx  context.Context
 	stop context.CancelFunc
@@ -137,48 +132,35 @@ func (f *consumer) LastModified() time.Time {
 // Close implements Feed interface.
 func (f *consumer) Close() error {
 	f.stop()
-	return f.src.Close()
+	if f.ownRemote {
+		return f.remote.Close()
+	}
+	return nil
 }
 
 func (f *consumer) sync(force bool) (bool, error) {
 	f.lastCheck.Store(time.Now())
 
-	info, err := f.src.Head(f.ctx)
+	// retrieve original last modified time,
+	msse, err := lastModifiedFromObj(f.ctx, f.remote)
 	if err != nil {
 		return false, err
 	}
 
-	// calculate last modified time
-	msec, _ := strconv.ParseInt(info.Metadata[lastModifiedMetaKey], 10, 64)
-
 	// skip update if not forced or modified
-	if msec == atomic.LoadInt64(&f.lastModMs) && !force {
+	if int64(msse) == atomic.LoadInt64(&f.lastModMs) && !force {
 		return false, nil
 	}
 
-	// open remote for reading
-	r, err := f.src.Open(f.ctx)
+	// open remote reader
+	reader, err := NewReader(f.ctx, f.remote, &f.opt.ReaderOptions)
 	if err != nil {
 		return false, err
 	}
-	defer r.Close()
-
-	// wrap in compressed reader
-	c, err := f.opt.Compression.NewReader(r)
-	if err != nil {
-		return false, err
-	}
-	defer c.Close()
-
-	// open decoder
-	d, err := f.opt.Format.NewDecoder(c)
-	if err != nil {
-		return false, err
-	}
-	defer f.Close()
+	defer reader.Close()
 
 	// parse feed
-	data, size, err := f.parse(d)
+	data, size, err := f.parse(reader)
 	if err != nil {
 		return false, err
 	}
@@ -186,7 +168,7 @@ func (f *consumer) sync(force bool) (bool, error) {
 	// update stores
 	f.data.Store(data)
 	atomic.StoreInt64(&f.size, size)
-	atomic.StoreInt64(&f.lastModMs, msec)
+	atomic.StoreInt64(&f.lastModMs, int64(msse))
 	return true, nil
 }
 
@@ -200,7 +182,9 @@ func (f *consumer) loop() {
 			return
 		case <-ticker.C:
 			updated, err := f.sync(false)
-			f.opt.AfterSync(updated, err)
+			if f.opt.AfterSync != nil {
+				f.opt.AfterSync(updated, err)
+			}
 		}
 	}
 }
