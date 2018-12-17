@@ -22,7 +22,7 @@ var _ = Describe("Consumer", func() {
 		Expect(writeMulti(obj, 2)).To(Succeed())
 
 		var err error
-		subject, err = feedx.NewConsumerForRemote(ctx, obj, nil, func(dec feedx.FormatDecoder) (interface{}, int64, error) {
+		subject, err = feedx.NewConsumerForRemote(ctx, obj, nil, func(dec feedx.FormatDecoder) (interface{}, error) {
 			var msgs []tbp.Message
 			for {
 				var msg tbp.Message
@@ -30,11 +30,11 @@ var _ = Describe("Consumer", func() {
 					break
 				}
 				if err != nil {
-					return nil, 0, err
+					return nil, err
 				}
 				msgs = append(msgs, msg)
 			}
-			return msgs, int64(len(msgs)), nil
+			return msgs, nil
 		})
 		Expect(err).NotTo(HaveOccurred())
 	})
@@ -44,9 +44,9 @@ var _ = Describe("Consumer", func() {
 	})
 
 	It("should sync and retrieve feeds from remote", func() {
-		Expect(subject.LastCheck()).To(BeTemporally("~", time.Now(), time.Second))
+		Expect(subject.LastSync()).To(BeTemporally("~", time.Now(), time.Second))
 		Expect(subject.LastModified()).To(BeTemporally("~", time.Unix(1515151515, 0), time.Second))
-		Expect(subject.Size()).To(Equal(int64(2)))
+		Expect(subject.NumRead()).To(Equal(2))
 		Expect(subject.Data()).To(Equal([]tbp.Message{fixture, fixture}))
 		Expect(subject.Close()).To(Succeed())
 	})

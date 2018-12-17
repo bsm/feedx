@@ -29,32 +29,32 @@ func (o *ConsumerOptions) norm(name string) error {
 	return nil
 }
 
-// ParseFunc is a data parse function.
-type ParseFunc func(FormatDecoder) (data interface{}, size int64, err error)
+// ConsumeFunc is a parsing callback which is run by the consumer every sync interval.
+type ConsumeFunc func(FormatDecoder) (data interface{}, err error)
 
 // Consumer manages data retrieval from a remote feed.
 // It queries the feed in regular intervals, continuously retrieving new updates.
 type Consumer interface {
-	// Data returns the data as returned by ParseFunc on last sync.
+	// Data returns the data as returned by ConsumeFunc on last sync.
 	Data() interface{}
-	// LastCheck returns time of last sync attempt.
-	LastCheck() time.Time
+	// LastSync returns time of last sync attempt.
+	LastSync() time.Time
 	// LastModified returns time at which the remote feed was last modified.
 	LastModified() time.Time
-	// Size returns the size as returned by ParseFunc on last sync.
-	Size() int64
+	// NumRead returns the number of values consumed during the last sync.
+	NumRead() int
 	// Close stops the underlying sync process.
 	Close() error
 }
 
 // NewConsumer starts a new feed consumer.
-func NewConsumer(ctx context.Context, remoteURL string, opt *ConsumerOptions, parse ParseFunc) (Consumer, error) {
+func NewConsumer(ctx context.Context, remoteURL string, opt *ConsumerOptions, cfn ConsumeFunc) (Consumer, error) {
 	remote, err := bfs.NewObject(ctx, remoteURL)
 	if err != nil {
 		return nil, err
 	}
 
-	csm, err := NewConsumerForRemote(ctx, remote, opt, parse)
+	csm, err := NewConsumerForRemote(ctx, remote, opt, cfn)
 	if err != nil {
 		_ = remote.Close()
 		return nil, err
@@ -64,7 +64,7 @@ func NewConsumer(ctx context.Context, remoteURL string, opt *ConsumerOptions, pa
 }
 
 // NewConsumerForRemote starts a new feed consumer with a remote.
-func NewConsumerForRemote(ctx context.Context, remote *bfs.Object, opt *ConsumerOptions, parse ParseFunc) (Consumer, error) {
+func NewConsumerForRemote(ctx context.Context, remote *bfs.Object, opt *ConsumerOptions, cfn ConsumeFunc) (Consumer, error) {
 	var o ConsumerOptions
 	if opt != nil {
 		o = *opt
@@ -79,7 +79,7 @@ func NewConsumerForRemote(ctx context.Context, remote *bfs.Object, opt *Consumer
 		opt:    o,
 		ctx:    ctx,
 		stop:   stop,
-		parse:  parse,
+		cfn:    cfn,
 	}
 
 	// run initial sync
@@ -102,34 +102,33 @@ type consumer struct {
 	ctx  context.Context
 	stop context.CancelFunc
 
-	parse ParseFunc
+	cfn  ConsumeFunc
+	data atomic.Value
 
-	size, lastModMs int64
-	data, lastCheck atomic.Value
+	numRead, lastMod, lastSync int64
 }
 
-// Data implements Feed interface.
+// Data implements Consumer interface.
 func (f *consumer) Data() interface{} {
 	return f.data.Load()
 }
 
-// Size implements Feed interface.
-func (f *consumer) Size() int64 {
-	return atomic.LoadInt64(&f.size)
+// NumRead implements Consumer interface.
+func (f *consumer) NumRead() int {
+	return int(atomic.LoadInt64(&f.numRead))
 }
 
-// LastCheck implements Feed interface.
-func (f *consumer) LastCheck() time.Time {
-	return f.lastCheck.Load().(time.Time)
+// LastSync implements Consumer interface.
+func (f *consumer) LastSync() time.Time {
+	return timestamp(atomic.LoadInt64(&f.lastSync)).Time()
 }
 
-// LastModified implements Feed interface.
+// LastModified implements Consumer interface.
 func (f *consumer) LastModified() time.Time {
-	msec := atomic.LoadInt64(&f.lastModMs)
-	return time.Unix(msec/1000, msec%1000*1e6)
+	return timestamp(atomic.LoadInt64(&f.lastMod)).Time()
 }
 
-// Close implements Feed interface.
+// Close implements Consumer interface.
 func (f *consumer) Close() error {
 	f.stop()
 	if f.ownRemote {
@@ -139,16 +138,18 @@ func (f *consumer) Close() error {
 }
 
 func (f *consumer) sync(force bool) (bool, error) {
-	f.lastCheck.Store(time.Now())
+	defer func() {
+		atomic.StoreInt64(&f.lastSync, timestampFromTime(time.Now()).Millis())
+	}()
 
 	// retrieve original last modified time
-	msse, err := lastModifiedFromObj(f.ctx, f.remote)
+	lastMod, err := remoteLastModified(f.ctx, f.remote)
 	if err != nil {
 		return false, err
 	}
 
 	// skip update if not forced or modified
-	if int64(msse) == atomic.LoadInt64(&f.lastModMs) && !force {
+	if lastMod.Millis() == atomic.LoadInt64(&f.lastMod) && !force {
 		return false, nil
 	}
 
@@ -159,16 +160,16 @@ func (f *consumer) sync(force bool) (bool, error) {
 	}
 	defer reader.Close()
 
-	// parse feed
-	data, size, err := f.parse(reader)
+	// consume feed
+	data, err := f.cfn(reader)
 	if err != nil {
 		return false, err
 	}
 
 	// update stores
 	f.data.Store(data)
-	atomic.StoreInt64(&f.size, size)
-	atomic.StoreInt64(&f.lastModMs, int64(msse))
+	atomic.StoreInt64(&f.numRead, int64(reader.NumRead()))
+	atomic.StoreInt64(&f.lastMod, lastMod.Millis())
 	return true, nil
 }
 

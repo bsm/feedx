@@ -41,6 +41,8 @@ var _ = Describe("Reader", func() {
 			Expect(err).NotTo(HaveOccurred())
 			msgs = append(msgs, msg)
 		}
+
 		Expect(msgs).To(Equal([]tbp.Message{fixture, fixture, fixture}))
+		Expect(subject.NumRead()).To(Equal(3))
 	})
 })
