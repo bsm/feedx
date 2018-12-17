@@ -3,7 +3,7 @@ require 'bfs'
 require 'feedx'
 
 module Feedx
-  # Pushes a relation as a protobuf encoded stream to an remote location.
+  # Pushes a relation as a protobuf encoded stream to a remote location.
   class Pusher
     # See constructor.
     def self.perform(url, opts={}, &block)

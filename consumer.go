@@ -141,7 +141,7 @@ func (f *consumer) Close() error {
 func (f *consumer) sync(force bool) (bool, error) {
 	f.lastCheck.Store(time.Now())
 
-	// retrieve original last modified time,
+	// retrieve original last modified time
 	msse, err := lastModifiedFromObj(f.ctx, f.remote)
 	if err != nil {
 		return false, err
