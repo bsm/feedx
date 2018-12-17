@@ -71,7 +71,7 @@ func NewWriter(ctx context.Context, remote *bfs.Object, opt *WriterOptions) (*Wr
 	}, nil
 }
 
-// Encode implements Producer.
+// Encode appends a value to the feed.
 func (w *Writer) Encode(v interface{}) error {
 	if w.bw == nil {
 		ts := timestampFromTime(w.opt.LastMod)

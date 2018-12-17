@@ -108,27 +108,27 @@ type consumer struct {
 	numRead, lastMod, lastSync int64
 }
 
-// Data implements Feed interface.
+// Data implements Consumer interface.
 func (f *consumer) Data() interface{} {
 	return f.data.Load()
 }
 
-// NumRead implements Feed interface.
+// NumRead implements Consumer interface.
 func (f *consumer) NumRead() int {
 	return int(atomic.LoadInt64(&f.numRead))
 }
 
-// LastSync implements Feed interface.
+// LastSync implements Consumer interface.
 func (f *consumer) LastSync() time.Time {
 	return timestamp(atomic.LoadInt64(&f.lastSync)).Time()
 }
 
-// LastModified implements Feed interface.
+// LastModified implements Consumer interface.
 func (f *consumer) LastModified() time.Time {
 	return timestamp(atomic.LoadInt64(&f.lastMod)).Time()
 }
 
-// Close implements Feed interface.
+// Close implements Consumer interface.
 func (f *consumer) Close() error {
 	f.stop()
 	if f.ownRemote {
