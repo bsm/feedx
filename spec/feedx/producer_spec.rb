@@ -1,6 +1,6 @@
 require 'spec_helper'
 
-RSpec.describe Feedx::Pusher do
+RSpec.describe Feedx::Producer do
   let :model do
     Class.new Struct.new(:title) do
       def to_pb

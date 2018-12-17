@@ -39,6 +39,7 @@ type Reader struct {
 	remote *bfs.Object
 	opt    ReaderOptions
 	ctx    context.Context
+	num    int
 
 	br io.ReadCloser // bfs reader
 	cr io.ReadCloser // compression reader
@@ -88,13 +89,23 @@ func (r *Reader) Decode(v interface{}) error {
 		r.fd = fd
 	}
 
-	return r.fd.Decode(v)
+	if err := r.fd.Decode(v); err != nil {
+		return err
+	}
+
+	r.num++
+	return nil
+}
+
+// NumRead returns the number of read values.
+func (r *Reader) NumRead() int {
+	return r.num
 }
 
 // LastModified returns the last modified time of the remote feed.
 func (r *Reader) LastModified() (time.Time, error) {
-	msse, err := lastModifiedFromObj(r.ctx, r.remote)
-	return msse.Time(), err
+	lastMod, err := remoteLastModified(r.ctx, r.remote)
+	return lastMod.Time(), err
 }
 
 // Close closes the reader.

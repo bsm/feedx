@@ -17,16 +17,17 @@ const (
 	metaPusherLastModified = "x-feedx-pusher-last-modified"
 )
 
-type millisSinceEpoch int64
+// Timestamp with millisecond resolution
+type timestamp int64
 
-func lastModifiedFromTime(t time.Time) millisSinceEpoch {
+func timestampFromTime(t time.Time) timestamp {
 	if n := t.Unix()*1000 + int64(t.Nanosecond()/1e6); n > 0 {
-		return millisSinceEpoch(n)
+		return timestamp(n)
 	}
 	return 0
 }
 
-func lastModifiedFromObj(ctx context.Context, obj *bfs.Object) (millisSinceEpoch, error) {
+func remoteLastModified(ctx context.Context, obj *bfs.Object) (timestamp, error) {
 	info, err := obj.Head(ctx)
 	if err == bfs.ErrNotFound {
 		return 0, nil
@@ -34,22 +35,23 @@ func lastModifiedFromObj(ctx context.Context, obj *bfs.Object) (millisSinceEpoch
 		return 0, err
 	}
 
-	return lastModifiedFromMeta(info.Metadata), nil
-}
-
-func lastModifiedFromMeta(meta map[string]string) millisSinceEpoch {
-	ms, _ := strconv.ParseInt(meta[metaLastModified], 10, 64)
-	if ms == 0 {
-		ms, _ = strconv.ParseInt(meta[metaPusherLastModified], 10, 64)
+	millis, _ := strconv.ParseInt(info.Metadata[metaLastModified], 10, 64)
+	if millis == 0 {
+		millis, _ = strconv.ParseInt(info.Metadata[metaPusherLastModified], 10, 64)
 	}
-	return millisSinceEpoch(ms)
+	return timestamp(millis), nil
 }
 
-func (ms millisSinceEpoch) Time() time.Time {
-	n := int64(ms)
+// Millis returns the number of milliseconds since epoch.
+func (t timestamp) Millis() int64 { return int64(t) }
+
+// Time returns the time at t.
+func (t timestamp) Time() time.Time {
+	n := t.Millis()
 	return time.Unix(n/1000, n%1000*1e6)
 }
 
-func (ms millisSinceEpoch) String() string {
-	return strconv.FormatInt(int64(ms), 10)
+// String returns a string of milliseconds.
+func (t timestamp) String() string {
+	return strconv.FormatInt(int64(t), 10)
 }

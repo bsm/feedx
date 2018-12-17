@@ -5,15 +5,15 @@
 
 Feed-based data exchange between services.
 
-## Usage
+## Usage (Ruby)
 
 ```ruby
 require 'bfs/s3'
 require 'feedx'
 
-# Init a new pusher with an S3 destination
+# Init a new producer with an S3 destination
 relation = Post.includes(:author)
-pusher = Feedx::Pusher.new relation, 's3://my-bucket/feeds/users.json.gz'
+producer = Feedx::Producer.new relation, 's3://my-bucket/feeds/users.json.gz'
 
 # Push a new feed every hour
 loop do

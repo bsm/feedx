@@ -49,6 +49,7 @@ type Writer struct {
 	ctx    context.Context
 	remote *bfs.Object
 	opt    WriterOptions
+	num    int
 
 	bw io.WriteCloser // bfs writer
 	cw io.WriteCloser // compression writer
@@ -73,9 +74,9 @@ func NewWriter(ctx context.Context, remote *bfs.Object, opt *WriterOptions) (*Wr
 // Encode implements Producer.
 func (w *Writer) Encode(v interface{}) error {
 	if w.bw == nil {
-		msse := lastModifiedFromTime(w.opt.LastMod)
+		ts := timestampFromTime(w.opt.LastMod)
 		bw, err := w.remote.Create(w.ctx, &bfs.WriteOptions{
-			Metadata: map[string]string{metaLastModified: msse.String()},
+			Metadata: map[string]string{metaLastModified: ts.String()},
 		})
 		if err != nil {
 			return err
@@ -99,7 +100,17 @@ func (w *Writer) Encode(v interface{}) error {
 		w.fe = fe
 	}
 
-	return w.fe.Encode(v)
+	if err := w.fe.Encode(v); err != nil {
+		return err
+	}
+
+	w.num++
+	return nil
+}
+
+// NumWritten returns the number of written values.
+func (w *Writer) NumWritten() int {
+	return w.num
 }
 
 // Close closes the writer.

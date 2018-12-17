@@ -3,6 +3,7 @@ module Feedx
 
   autoload :Compression, 'feedx/compression'
   autoload :Format, 'feedx/format'
+  autoload :Producer, 'feedx/producer'
   autoload :Pusher, 'feedx/pusher'
   autoload :TaskState, 'feedx/task_state'
 end
