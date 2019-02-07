@@ -47,6 +47,8 @@ func (o *WriterOptions) norm(name string) error {
 // Writer encodes feeds to remote locations.
 type Writer struct {
 	ctx    context.Context
+	cancel context.CancelFunc
+
 	remote *bfs.Object
 	opt    WriterOptions
 	num    int
@@ -64,8 +66,10 @@ func NewWriter(ctx context.Context, remote *bfs.Object, opt *WriterOptions) (*Wr
 	}
 	o.norm(remote.Name())
 
+	ctx, cancel := context.WithCancel(ctx)
 	return &Writer{
 		ctx:    ctx,
+		cancel: cancel,
 		remote: remote,
 		opt:    o,
 	}, nil
@@ -113,8 +117,14 @@ func (w *Writer) NumWritten() int {
 	return w.num
 }
 
-// Close closes the writer.
-func (w *Writer) Close() error {
+// Discard closes the writer and discards the contents.
+func (w *Writer) Discard() error {
+	w.cancel()
+	return w.Commit()
+}
+
+// Commit closes the writer and persists the contents.
+func (w *Writer) Commit() error {
 	var err error
 	if w.fe != nil {
 		if e := w.fe.Close(); e != nil {

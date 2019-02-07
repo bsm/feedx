@@ -37,7 +37,7 @@ func writeMulti(obj *bfs.Object, numEntries int) error {
 	if err != nil {
 		return err
 	}
-	defer w.Close()
+	defer w.Discard()
 
 	for i := 0; i < numEntries; i++ {
 		fix := fixture
@@ -45,7 +45,7 @@ func writeMulti(obj *bfs.Object, numEntries int) error {
 			return err
 		}
 	}
-	return w.Close()
+	return w.Commit()
 }
 
 func TestSuite(t *testing.T) {
