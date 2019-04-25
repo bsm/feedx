@@ -1,2 +1,3 @@
+require: rubocop-performance
 inherit_from:
-  - https://bitbucket.org/bsm/misc/raw/master/rubocop/default.yml
+  - https://gitlab.com/bsm/misc/raw/master/rubocop/default.yml
