@@ -7,7 +7,7 @@ RSpec.describe Feedx::Producer do
         Feedx::TestCase::Message.new title: title
       end
 
-      def to_json
+      def to_json(*)
         ::JSON.dump(title: title, updated_at: Time.at(1515151515).utc)
       end
     end
