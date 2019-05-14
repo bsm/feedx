@@ -1,6 +1,6 @@
 Gem::Specification.new do |s|
   s.name          = 'feedx'
-  s.version       = '0.5.0'
+  s.version       = '0.5.1'
   s.authors       = ['Black Square Media Ltd']
   s.email         = ['info@blacksquaremedia.com']
   s.summary       = %(Exchange data between components via feeds)
@@ -11,7 +11,7 @@ Gem::Specification.new do |s|
   s.files         = `git ls-files -z`.split("\x0").reject {|f| f.match(%r{^spec/}) }
   s.test_files    = `git ls-files -z -- spec/*`.split("\x0")
   s.require_paths = ['lib']
-  s.required_ruby_version = '>= 2.2'
+  s.required_ruby_version = '>= 2.3'
 
   s.add_dependency 'bfs', '>= 0.3.4'
 
