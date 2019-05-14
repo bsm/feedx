@@ -117,11 +117,8 @@ func (p *Producer) Close() error {
 }
 
 func (p *Producer) push() error {
-	var now int64
+	now := timestampFromTime(time.Now()).Millis()
 	defer func() {
-		if now == 0 {
-			now = timestampFromTime(time.Now()).Millis()
-		}
 		atomic.StoreInt64(&p.lastPush, now)
 	}()
 
@@ -143,7 +140,6 @@ func (p *Producer) push() error {
 		return err
 	}
 
-	now = timestampFromTime(time.Now()).Millis()
 	atomic.StoreInt64(&p.numWritten, int64(writer.NumWritten()))
 	atomic.StoreInt64(&p.lastMod, now)
 	return nil

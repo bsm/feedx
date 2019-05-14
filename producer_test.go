@@ -38,6 +38,7 @@ var _ = Describe("Producer", func() {
 	It("should produce", func() {
 		Expect(subject.LastPush()).To(BeTemporally("~", time.Now(), time.Second))
 		Expect(subject.LastModified()).To(Equal(subject.LastPush()))
+		Expect(subject.NumWritten()).To(Equal(10))
 		Expect(subject.Close()).To(Succeed())
 	})
 })
