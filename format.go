@@ -47,11 +47,15 @@ type FormatDecoder interface {
 	io.Closer
 }
 
-// FormatEncoder methods
-type FormatEncoder interface {
+// FormatPureEncoder methods
+type FormatPureEncoder interface {
 	// Encode encodes the value to the stream.
 	Encode(v interface{}) error
+}
 
+// FormatEncoder methods
+type FormatEncoder interface {
+	FormatPureEncoder
 	io.Closer
 }
 
