@@ -24,8 +24,8 @@ type ProducerOptions struct {
 	LastModCheck func(context.Context) (time.Time, error)
 
 	// AfterPush callbacks are triggered after each push cycle, receiving
-	// an error (if occurred).
-	AfterPush func(error)
+	// the updated status and error (if occurred).
+	AfterPush func(updated bool, err error)
 }
 
 func (o *ProducerOptions) norm(name string) error {
@@ -85,7 +85,7 @@ func NewProducerForRemote(ctx context.Context, remote *bfs.Object, opt *Producer
 	}
 
 	// run initial push
-	if err := p.push(); err != nil {
+	if _, err := p.push(); err != nil {
 		_ = p.Close()
 		return nil, err
 	}
@@ -120,41 +120,49 @@ func (p *Producer) Close() error {
 	return nil
 }
 
-func (p *Producer) push() error {
+func (p *Producer) push() (bool, error) {
 	start := time.Now()
 	atomic.StoreInt64(&p.lastPush, timestampFromTime(start).Millis())
 
+	// setup write options
 	wopt := p.opt.WriterOptions
 	wopt.LastMod = start
 	if p.opt.LastModCheck != nil {
 		modTime, err := p.opt.LastModCheck(p.ctx)
 		if err != nil {
-			return err
+			return false, err
 		}
 		wopt.LastMod = modTime
 	}
 
+	// retrieve original last modified time
+	lastMod, err := remoteLastModified(p.ctx, p.remote)
+	if err != nil {
+		return false, err
+	}
+
+	// skip push if not modified
+	if lastMod.Time().Equal(wopt.LastMod) {
+		return false, nil
+	}
+
 	writer, err := NewWriter(p.ctx, p.remote, &wopt)
 	if err != nil {
-		return err
+		return false, err
 	}
 	defer writer.Discard()
 
 	if err := p.pfn(writer); err != nil {
-		return err
-	}
-
-	if writer.NumWritten() == 0 {
-		return nil
+		return false, err
 	}
 
 	if err := writer.Commit(); err != nil {
-		return err
+		return false, err
 	}
 
 	atomic.StoreInt64(&p.numWritten, int64(writer.NumWritten()))
 	atomic.StoreInt64(&p.lastMod, timestampFromTime(wopt.LastMod).Millis())
-	return nil
+	return true, nil
 }
 
 func (p *Producer) loop() {
@@ -166,8 +174,9 @@ func (p *Producer) loop() {
 		case <-p.ctx.Done():
 			return
 		case <-ticker.C:
-			if err := p.push(); p.opt.AfterPush != nil {
-				p.opt.AfterPush(err)
+			updated, err := p.push()
+			if p.opt.AfterPush != nil {
+				p.opt.AfterPush(updated, err)
 			}
 		}
 	}
