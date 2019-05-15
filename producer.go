@@ -19,6 +19,10 @@ type ProducerOptions struct {
 	// Default: 1m
 	Interval time.Duration
 
+	// LastModCheck this function will be called before each push attempt
+	// to dynamically determine the last modified time.
+	LastModCheck func(context.Context) (time.Time, error)
+
 	// AfterPush callbacks are triggered after each push cycle, receiving
 	// an error (if occurred).
 	AfterPush func(error)
@@ -117,12 +121,20 @@ func (p *Producer) Close() error {
 }
 
 func (p *Producer) push() error {
-	now := timestampFromTime(time.Now()).Millis()
-	defer func() {
-		atomic.StoreInt64(&p.lastPush, now)
-	}()
+	start := time.Now()
+	atomic.StoreInt64(&p.lastPush, timestampFromTime(start).Millis())
 
-	writer, err := NewWriter(p.ctx, p.remote, &p.opt.WriterOptions)
+	wopt := p.opt.WriterOptions
+	wopt.LastMod = start
+	if p.opt.LastModCheck != nil {
+		modTime, err := p.opt.LastModCheck(p.ctx)
+		if err != nil {
+			return err
+		}
+		wopt.LastMod = modTime
+	}
+
+	writer, err := NewWriter(p.ctx, p.remote, &wopt)
 	if err != nil {
 		return err
 	}
@@ -141,7 +153,7 @@ func (p *Producer) push() error {
 	}
 
 	atomic.StoreInt64(&p.numWritten, int64(writer.NumWritten()))
-	atomic.StoreInt64(&p.lastMod, now)
+	atomic.StoreInt64(&p.lastMod, timestampFromTime(wopt.LastMod).Millis())
 	return nil
 }
 
