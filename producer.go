@@ -25,7 +25,7 @@ type ProducerOptions struct {
 
 	// AfterPush callbacks are triggered after each push cycle, receiving
 	// the updated status and error (if occurred).
-	AfterPush func(updated bool, err error)
+	AfterPush func(updated bool, consumer *Producer, err error)
 }
 
 func (o *ProducerOptions) norm(name string) error {
@@ -176,7 +176,7 @@ func (p *Producer) loop() {
 		case <-ticker.C:
 			updated, err := p.push()
 			if p.opt.AfterPush != nil {
-				p.opt.AfterPush(updated, err)
+				p.opt.AfterPush(updated, p, err)
 			}
 		}
 	}

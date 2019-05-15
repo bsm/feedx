@@ -18,7 +18,7 @@ type ConsumerOptions struct {
 
 	// AfterSync callbacks are triggered after each sync, receiving
 	// the updated status and error (if occurred).
-	AfterSync func(updated bool, err error)
+	AfterSync func(updated bool, consumer Consumer, err error)
 }
 
 func (o *ConsumerOptions) norm(name string) error {
@@ -74,7 +74,7 @@ func NewConsumerForRemote(ctx context.Context, remote *bfs.Object, opt *Consumer
 	}
 
 	ctx, stop := context.WithCancel(ctx)
-	f := &consumer{
+	c := &consumer{
 		remote: remote,
 		opt:    o,
 		ctx:    ctx,
@@ -83,15 +83,15 @@ func NewConsumerForRemote(ctx context.Context, remote *bfs.Object, opt *Consumer
 	}
 
 	// run initial sync
-	if _, err := f.sync(true); err != nil {
-		_ = f.Close()
+	if _, err := c.sync(true); err != nil {
+		_ = c.Close()
 		return nil, err
 	}
 
 	// start continuous loop
-	go f.loop()
+	go c.loop()
 
-	return f, nil
+	return c, nil
 }
 
 type consumer struct {
@@ -109,82 +109,82 @@ type consumer struct {
 }
 
 // Data implements Consumer interface.
-func (f *consumer) Data() interface{} {
-	return f.data.Load()
+func (c *consumer) Data() interface{} {
+	return c.data.Load()
 }
 
 // NumRead implements Consumer interface.
-func (f *consumer) NumRead() int {
-	return int(atomic.LoadInt64(&f.numRead))
+func (c *consumer) NumRead() int {
+	return int(atomic.LoadInt64(&c.numRead))
 }
 
 // LastSync implements Consumer interface.
-func (f *consumer) LastSync() time.Time {
-	return timestamp(atomic.LoadInt64(&f.lastSync)).Time()
+func (c *consumer) LastSync() time.Time {
+	return timestamp(atomic.LoadInt64(&c.lastSync)).Time()
 }
 
 // LastModified implements Consumer interface.
-func (f *consumer) LastModified() time.Time {
-	return timestamp(atomic.LoadInt64(&f.lastMod)).Time()
+func (c *consumer) LastModified() time.Time {
+	return timestamp(atomic.LoadInt64(&c.lastMod)).Time()
 }
 
 // Close implements Consumer interface.
-func (f *consumer) Close() error {
-	f.stop()
-	if f.ownRemote {
-		return f.remote.Close()
+func (c *consumer) Close() error {
+	c.stop()
+	if c.ownRemote {
+		return c.remote.Close()
 	}
 	return nil
 }
 
-func (f *consumer) sync(force bool) (bool, error) {
+func (c *consumer) sync(force bool) (bool, error) {
 	defer func() {
-		atomic.StoreInt64(&f.lastSync, timestampFromTime(time.Now()).Millis())
+		atomic.StoreInt64(&c.lastSync, timestampFromTime(time.Now()).Millis())
 	}()
 
 	// retrieve original last modified time
-	lastMod, err := remoteLastModified(f.ctx, f.remote)
+	lastMod, err := remoteLastModified(c.ctx, c.remote)
 	if err != nil {
 		return false, err
 	}
 
 	// skip update if not forced or modified
-	if lastMod.Millis() == atomic.LoadInt64(&f.lastMod) && !force {
+	if lastMod.Millis() == atomic.LoadInt64(&c.lastMod) && !force {
 		return false, nil
 	}
 
 	// open remote reader
-	reader, err := NewReader(f.ctx, f.remote, &f.opt.ReaderOptions)
+	reader, err := NewReader(c.ctx, c.remote, &c.opt.ReaderOptions)
 	if err != nil {
 		return false, err
 	}
 	defer reader.Close()
 
 	// consume feed
-	data, err := f.cfn(reader)
+	data, err := c.cfn(reader)
 	if err != nil {
 		return false, err
 	}
 
 	// update stores
-	f.data.Store(data)
-	atomic.StoreInt64(&f.numRead, int64(reader.NumRead()))
-	atomic.StoreInt64(&f.lastMod, lastMod.Millis())
+	c.data.Store(data)
+	atomic.StoreInt64(&c.numRead, int64(reader.NumRead()))
+	atomic.StoreInt64(&c.lastMod, lastMod.Millis())
 	return true, nil
 }
 
-func (f *consumer) loop() {
-	ticker := time.NewTicker(f.opt.Interval)
+func (c *consumer) loop() {
+	ticker := time.NewTicker(c.opt.Interval)
 	defer ticker.Stop()
 
 	for {
 		select {
-		case <-f.ctx.Done():
+		case <-c.ctx.Done():
 			return
 		case <-ticker.C:
-			updated, err := f.sync(false)
-			if f.opt.AfterSync != nil {
-				f.opt.AfterSync(updated, err)
+			updated, err := c.sync(false)
+			if c.opt.AfterSync != nil {
+				c.opt.AfterSync(updated, c, err)
 			}
 		}
 	}
