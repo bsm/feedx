@@ -17,8 +17,8 @@ type ConsumerOptions struct {
 	Interval time.Duration
 
 	// AfterSync callbacks are triggered after each sync, receiving
-	// the updated status and error (if occurred).
-	AfterSync func(updated bool, consumer Consumer, err error)
+	// the sync state and error (if occurred).
+	AfterSync func(*ConsumerSync, error)
 }
 
 func (o *ConsumerOptions) norm(name string) error {
@@ -27,6 +27,18 @@ func (o *ConsumerOptions) norm(name string) error {
 		o.Interval = time.Minute
 	}
 	return nil
+}
+
+// ConsumerSync contains the state of the last sync.
+type ConsumerSync struct {
+	// Consumer exposes the current consumer state.
+	Consumer
+	// Updated indicates is the sync resulted in an update.
+	Updated bool
+	// PreviousData references the data before the update.
+	// It allows to apply finalizers to data structures created by ConsumeFunc.
+	// This is only set when an update happened.
+	PreviousData interface{}
 }
 
 // ConsumeFunc is a parsing callback which is run by the consumer every sync interval.
@@ -137,7 +149,7 @@ func (c *consumer) Close() error {
 	return nil
 }
 
-func (c *consumer) sync(force bool) (bool, error) {
+func (c *consumer) sync(force bool) (*ConsumerSync, error) {
 	defer func() {
 		atomic.StoreInt64(&c.lastSync, timestampFromTime(time.Now()).Millis())
 	}()
@@ -145,32 +157,37 @@ func (c *consumer) sync(force bool) (bool, error) {
 	// retrieve original last modified time
 	lastMod, err := remoteLastModified(c.ctx, c.remote)
 	if err != nil {
-		return false, err
+		return nil, err
 	}
 
 	// skip update if not forced or modified
 	if lastMod.Millis() == atomic.LoadInt64(&c.lastMod) && !force {
-		return false, nil
+		return &ConsumerSync{Consumer: c}, nil
 	}
 
 	// open remote reader
 	reader, err := NewReader(c.ctx, c.remote, &c.opt.ReaderOptions)
 	if err != nil {
-		return false, err
+		return nil, err
 	}
 	defer reader.Close()
 
 	// consume feed
 	data, err := c.cfn(reader)
 	if err != nil {
-		return false, err
+		return nil, err
 	}
 
 	// update stores
+	previous := c.data.Load()
 	c.data.Store(data)
 	atomic.StoreInt64(&c.numRead, int64(reader.NumRead()))
 	atomic.StoreInt64(&c.lastMod, lastMod.Millis())
-	return true, nil
+	return &ConsumerSync{
+		Consumer:     c,
+		Updated:      true,
+		PreviousData: previous,
+	}, nil
 }
 
 func (c *consumer) loop() {
@@ -182,9 +199,9 @@ func (c *consumer) loop() {
 		case <-c.ctx.Done():
 			return
 		case <-ticker.C:
-			updated, err := c.sync(false)
+			state, err := c.sync(false)
 			if c.opt.AfterSync != nil {
-				c.opt.AfterSync(updated, c, err)
+				c.opt.AfterSync(state, err)
 			}
 		}
 	}

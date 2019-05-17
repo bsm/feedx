@@ -24,8 +24,8 @@ type ProducerOptions struct {
 	LastModCheck func(context.Context) (time.Time, error)
 
 	// AfterPush callbacks are triggered after each push cycle, receiving
-	// the updated status and error (if occurred).
-	AfterPush func(updated bool, consumer *Producer, err error)
+	// the push state and error (if occurred).
+	AfterPush func(*ProducerPush, error)
 }
 
 func (o *ProducerOptions) norm(name string) error {
@@ -34,6 +34,14 @@ func (o *ProducerOptions) norm(name string) error {
 		o.Interval = time.Minute
 	}
 	return nil
+}
+
+// ProducerPush contains the state of the last push.
+type ProducerPush struct {
+	// Producer exposes the current producer state.
+	*Producer
+	// Updated indicates is the push resulted in an update.
+	Updated bool
 }
 
 // Producer (continously) produces a feed.
@@ -120,7 +128,7 @@ func (p *Producer) Close() error {
 	return nil
 }
 
-func (p *Producer) push() (bool, error) {
+func (p *Producer) push() (*ProducerPush, error) {
 	start := time.Now()
 	atomic.StoreInt64(&p.lastPush, timestampFromTime(start).Millis())
 
@@ -130,7 +138,7 @@ func (p *Producer) push() (bool, error) {
 	if p.opt.LastModCheck != nil {
 		modTime, err := p.opt.LastModCheck(p.ctx)
 		if err != nil {
-			return false, err
+			return nil, err
 		}
 		wopt.LastMod = modTime
 	}
@@ -138,31 +146,34 @@ func (p *Producer) push() (bool, error) {
 	// retrieve original last modified time
 	lastMod, err := remoteLastModified(p.ctx, p.remote)
 	if err != nil {
-		return false, err
+		return nil, err
 	}
 
 	// skip push if not modified
 	if lastMod.Time().Equal(wopt.LastMod) {
-		return false, nil
+		return &ProducerPush{Producer: p}, nil
 	}
 
 	writer, err := NewWriter(p.ctx, p.remote, &wopt)
 	if err != nil {
-		return false, err
+		return nil, err
 	}
 	defer writer.Discard()
 
 	if err := p.pfn(writer); err != nil {
-		return false, err
+		return nil, err
 	}
 
 	if err := writer.Commit(); err != nil {
-		return false, err
+		return nil, err
 	}
 
 	atomic.StoreInt64(&p.numWritten, int64(writer.NumWritten()))
 	atomic.StoreInt64(&p.lastMod, timestampFromTime(wopt.LastMod).Millis())
-	return true, nil
+	return &ProducerPush{
+		Producer: p,
+		Updated:  true,
+	}, nil
 }
 
 func (p *Producer) loop() {
@@ -174,9 +185,9 @@ func (p *Producer) loop() {
 		case <-p.ctx.Done():
 			return
 		case <-ticker.C:
-			updated, err := p.push()
+			state, err := p.push()
 			if p.opt.AfterPush != nil {
-				p.opt.AfterPush(updated, p, err)
+				p.opt.AfterPush(state, err)
 			}
 		}
 	}
