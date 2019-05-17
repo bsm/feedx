@@ -1,6 +1,7 @@
 package feedx
 
 import (
+	"bufio"
 	"context"
 	"fmt"
 	"io"
@@ -55,6 +56,7 @@ type Writer struct {
 
 	bw io.WriteCloser // bfs writer
 	cw io.WriteCloser // compression writer
+	ww *bufio.Writer
 	fe FormatEncoder
 }
 
@@ -96,8 +98,12 @@ func (w *Writer) Encode(v interface{}) error {
 		w.cw = cw
 	}
 
+	if w.ww == nil {
+		w.ww = bufio.NewWriter(w.cw)
+	}
+
 	if w.fe == nil {
-		fe, err := w.opt.Format.NewEncoder(w.cw)
+		fe, err := w.opt.Format.NewEncoder(w.ww)
 		if err != nil {
 			return err
 		}
@@ -128,6 +134,11 @@ func (w *Writer) Commit() error {
 	var err error
 	if w.fe != nil {
 		if e := w.fe.Close(); e != nil {
+			err = e
+		}
+	}
+	if w.ww != nil {
+		if e := w.ww.Flush(); e != nil {
 			err = e
 		}
 	}
