@@ -5,6 +5,12 @@ module Feedx
     autoload :Protobuf, 'feedx/format/protobuf'
 
     class << self
+      def register(ext, kind)
+        raise ArgumentError, "#{kind} is not a subclass of Feedx::Format::Abstract" unless kind.is_a?(Class) && kind < Abstract
+
+        registry[ext.to_s] = kind
+      end
+
       def resolve(name)
         _resolve(name) || raise(ArgumentError, "invalid format #{name}")
       end
@@ -24,13 +30,23 @@ module Feedx
 
       private
 
+      def registry
+        @registry ||= {
+          'json'     => :JSON,
+          'pb'       => :Protobuf,
+          'proto'    => :Protobuf,
+          'protobuf' => :Protobuf,
+        }
+      end
+
       def _resolve(name)
-        case name.to_s
-        when 'pb', 'proto', 'protobuf'
-          Protobuf
-        when 'json'
-          JSON
+        name  = name.to_s
+        klass = registry[name]
+        if klass.is_a?(Symbol)
+          klass = const_get(klass)
+          registry[name.to_s] = klass
         end
+        klass
       end
     end
   end
