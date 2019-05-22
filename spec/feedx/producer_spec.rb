@@ -1,20 +1,8 @@
 require 'spec_helper'
 
 RSpec.describe Feedx::Producer do
-  let :model do
-    Class.new Struct.new(:title) do
-      def to_pb
-        Feedx::TestCase::Message.new title: title
-      end
-
-      def to_json(*)
-        ::JSON.dump(title: title, updated_at: Time.at(1515151515).utc)
-      end
-    end
-  end
-
   let :enumerable do
-    %w[x y z].map {|t| model.new(t) } * 100
+    %w[x y z].map {|t| Feedx::TestCase::Model.new(t) } * 100
   end
 
   let(:bucket) { BFS::Bucket::InMem.new }

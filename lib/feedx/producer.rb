@@ -22,9 +22,7 @@ module Feedx
       @enum = opts[:enum] || block
       raise ArgumentError, "#{self.class.name}.new expects an :enum option or a block factory" unless @enum
 
-      @blob     = BFS::Blob.new(url)
-      @format   = detect_format(opts[:format])
-      @compress = detect_compress(opts[:compress])
+      @stream = Feedx::Stream.new(url, opts)
       @last_mod = opts[:last_modified]
     end
 
@@ -34,51 +32,16 @@ module Feedx
       current  = (last_mod.to_f * 1000).floor
 
       begin
-        previous = @blob.info.metadata[META_LAST_MODIFIED].to_i
+        previous = @stream.blob.info.metadata[META_LAST_MODIFIED].to_i
         return -1 unless current > previous
       rescue BFS::FileNotFound # rubocop:disable Lint/HandleExceptions
       end if current.positive?
 
-      @blob.create metadata: { META_LAST_MODIFIED => current.to_s } do |io|
-        @compress.wrap(io) {|w| write_all(enum, w) }
+      @stream.create metadata: { META_LAST_MODIFIED => current.to_s } do |fmt|
+        iter = enum.respond_to?(:find_each) ? :find_each : :each
+        enum.send(iter) {|rec| fmt.encode(rec) }
       end
-      @blob.info.size
-    end
-
-    private
-
-    def detect_format(val)
-      case val
-      when nil
-        Feedx::Format.detect(@blob.path)
-      when Class
-        parent = Feedx::Format::Abstract
-        raise ArgumentError, "Class #{val} must extend #{parent}" unless val < parent
-
-        val
-      else
-        Feedx::Format.resolve(val)
-      end
-    end
-
-    def detect_compress(val)
-      case val
-      when nil
-        Feedx::Compression.detect(@blob.path)
-      when Class
-        parent = Feedx::Compression::Abstract
-        raise ArgumentError, "Class #{val} must extend #{parent}" unless val < parent
-
-        val
-      else
-        Feedx::Compression.resolve(val)
-      end
-    end
-
-    def write_all(enum, io)
-      stream   = @format.new(io)
-      iterator = enum.respond_to?(:find_each) ? :find_each : :each
-      enum.send(iterator) {|rec| stream.write(rec) }
+      @stream.blob.info.size
     end
   end
 end
