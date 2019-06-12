@@ -7,11 +7,19 @@ class Feedx::Format::Abstract
     @io.eof?
   end
 
-  def decode(_klass)
+  def decode_each(klass, **opts)
+    if block_given?
+      yield decode(klass, opts) until eof?
+    else
+      Enumerator.new {|y| y << decode(klass, opts) until eof? }
+    end
+  end
+
+  def decode(_klass, **)
     raise 'Not implemented'
   end
 
-  def encode(_msg)
+  def encode(_msg, **)
     raise 'Not implemented'
   end
 end

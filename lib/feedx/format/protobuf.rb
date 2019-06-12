@@ -5,12 +5,12 @@ class Feedx::Format::Protobuf < Feedx::Format::Abstract
     super PBIO::Delimited.new(io)
   end
 
-  def decode(klass)
+  def decode(klass, **)
     @io.read(klass)
   end
 
-  def encode(msg)
-    msg = msg.to_pb if msg.respond_to?(:to_pb)
+  def encode(msg, **opts)
+    msg = msg.to_pb(**opts) if msg.respond_to?(:to_pb)
     @io.write msg
   end
 end

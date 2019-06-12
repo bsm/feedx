@@ -1,7 +1,7 @@
 require 'json'
 
 class Feedx::Format::JSON < Feedx::Format::Abstract
-  def decode(obj)
+  def decode(obj, **)
     line = @io.gets
     return unless line
 
@@ -10,7 +10,7 @@ class Feedx::Format::JSON < Feedx::Format::Abstract
     obj
   end
 
-  def encode(msg)
+  def encode(msg, **)
     @io.write msg.to_json << "\n"
   end
 end
