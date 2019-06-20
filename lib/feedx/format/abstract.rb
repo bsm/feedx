@@ -9,9 +9,9 @@ class Feedx::Format::Abstract
 
   def decode_each(klass, **opts)
     if block_given?
-      yield decode(klass, opts) until eof?
+      yield decode(klass, **opts) until eof?
     else
-      Enumerator.new {|y| y << decode(klass, opts) until eof? }
+      Enumerator.new {|y| y << decode(klass, **opts) until eof? }
     end
   end
 
