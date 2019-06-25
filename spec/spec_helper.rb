@@ -19,7 +19,7 @@ module Feedx
         @title = title
       end
 
-      def to_pb
+      def to_pb(*)
         Feedx::TestCase::Message.new title: @title
       end
 
