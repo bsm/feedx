@@ -42,7 +42,7 @@ type ConsumerSync struct {
 }
 
 // ConsumeFunc is a parsing callback which is run by the consumer every sync interval.
-type ConsumeFunc func(FormatDecoder) (data interface{}, err error)
+type ConsumeFunc func(*Reader) (data interface{}, err error)
 
 // Consumer manages data retrieval from a remote feed.
 // It queries the feed in regular intervals, continuously retrieving new updates.

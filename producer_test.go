@@ -17,10 +17,10 @@ var _ = Describe("Producer", func() {
 
 	setup := func(o *feedx.ProducerOptions) {
 		var err error
-		subject, err = feedx.NewProducerForRemote(ctx, obj, o, func(enc feedx.FormatPureEncoder) error {
+		subject, err = feedx.NewProducerForRemote(ctx, obj, o, func(w *feedx.Writer) error {
 			for i := 0; i < 10; i++ {
 				fix := fixture
-				if err := enc.Encode(&fix); err != nil {
+				if err := w.Encode(&fix); err != nil {
 					return err
 				}
 			}

@@ -22,11 +22,11 @@ var _ = Describe("Consumer", func() {
 		Expect(writeMulti(obj, 2)).To(Succeed())
 
 		var err error
-		subject, err = feedx.NewConsumerForRemote(ctx, obj, nil, func(dec feedx.FormatDecoder) (interface{}, error) {
+		subject, err = feedx.NewConsumerForRemote(ctx, obj, nil, func(r *feedx.Reader) (interface{}, error) {
 			var msgs []tbp.Message
 			for {
 				var msg tbp.Message
-				if err := dec.Decode(&msg); err == io.EOF {
+				if err := r.Decode(&msg); err == io.EOF {
 					break
 				}
 				if err != nil {

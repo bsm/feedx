@@ -77,29 +77,26 @@ func NewWriter(ctx context.Context, remote *bfs.Object, opt *WriterOptions) (*Wr
 	}, nil
 }
 
+// Write write raw bytes to the feed.
+func (w *Writer) Write(p []byte) (int, error) {
+	if err := w.ensureCreated(); err != nil {
+		return 0, err
+	}
+	return w.ww.Write(p)
+}
+
+// WriteString write a raw string to the feed.
+func (w *Writer) WriteString(s string) (int, error) {
+	if err := w.ensureCreated(); err != nil {
+		return 0, err
+	}
+	return w.ww.WriteString(s)
+}
+
 // Encode appends a value to the feed.
 func (w *Writer) Encode(v interface{}) error {
-	if w.bw == nil {
-		ts := timestampFromTime(w.opt.LastMod)
-		bw, err := w.remote.Create(w.ctx, &bfs.WriteOptions{
-			Metadata: map[string]string{metaLastModified: ts.String()},
-		})
-		if err != nil {
-			return err
-		}
-		w.bw = bw
-	}
-
-	if w.cw == nil {
-		cw, err := w.opt.Compression.NewWriter(w.bw)
-		if err != nil {
-			return err
-		}
-		w.cw = cw
-	}
-
-	if w.ww == nil {
-		w.ww = bufio.NewWriter(w.cw)
+	if err := w.ensureCreated(); err != nil {
+		return err
 	}
 
 	if w.fe == nil {
@@ -153,4 +150,31 @@ func (w *Writer) Commit() error {
 		}
 	}
 	return err
+}
+
+func (w *Writer) ensureCreated() error {
+	if w.bw == nil {
+		ts := timestampFromTime(w.opt.LastMod)
+		bw, err := w.remote.Create(w.ctx, &bfs.WriteOptions{
+			Metadata: map[string]string{metaLastModified: ts.String()},
+		})
+		if err != nil {
+			return err
+		}
+		w.bw = bw
+	}
+
+	if w.cw == nil {
+		cw, err := w.opt.Compression.NewWriter(w.bw)
+		if err != nil {
+			return err
+		}
+		w.cw = cw
+	}
+
+	if w.ww == nil {
+		w.ww = bufio.NewWriter(w.cw)
+	}
+
+	return nil
 }

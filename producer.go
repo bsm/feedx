@@ -9,7 +9,7 @@ import (
 )
 
 // ProduceFunc is a callback which is run by the producer on every iteration.
-type ProduceFunc func(FormatPureEncoder) error
+type ProduceFunc func(*Writer) error
 
 // ProducerOptions configure the producer instance.
 type ProducerOptions struct {

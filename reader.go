@@ -63,22 +63,19 @@ func NewReader(ctx context.Context, remote *bfs.Object, opt *ReaderOptions) (*Re
 	}, nil
 }
 
-// Decode decodes the next value from the feed.
-func (r *Reader) Decode(v interface{}) error {
-	if r.br == nil {
-		br, err := r.remote.Open(r.ctx)
-		if err != nil {
-			return err
-		}
-		r.br = br
+// Read reads raw bytes from the feed.
+func (r *Reader) Read(p []byte) (int, error) {
+	if err := r.ensureOpen(); err != nil {
+		return 0, err
 	}
 
-	if r.cr == nil {
-		cr, err := r.opt.Compression.NewReader(r.br)
-		if err != nil {
-			return err
-		}
-		r.cr = cr
+	return r.cr.Read(p)
+}
+
+// Decode decodes the next formatted value from the feed.
+func (r *Reader) Decode(v interface{}) error {
+	if err := r.ensureOpen(); err != nil {
+		return err
 	}
 
 	if r.fd == nil {
@@ -127,4 +124,24 @@ func (r *Reader) Close() error {
 		}
 	}
 	return err
+}
+
+func (r *Reader) ensureOpen() error {
+	if r.br == nil {
+		br, err := r.remote.Open(r.ctx)
+		if err != nil {
+			return err
+		}
+		r.br = br
+	}
+
+	if r.cr == nil {
+		cr, err := r.opt.Compression.NewReader(r.br)
+		if err != nil {
+			return err
+		}
+		r.cr = cr
+	}
+
+	return nil
 }

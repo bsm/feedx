@@ -3,6 +3,7 @@ package feedx_test
 import (
 	"context"
 	"io"
+	"io/ioutil"
 
 	"github.com/bsm/feedx"
 
@@ -31,6 +32,13 @@ var _ = Describe("Reader", func() {
 	})
 
 	It("should read", func() {
+		data, err := ioutil.ReadAll(subject)
+		Expect(err).NotTo(HaveOccurred())
+		Expect(len(data)).To(BeNumerically("~", 140, 20))
+		Expect(subject.NumRead()).To(Equal(0))
+	})
+
+	It("should decode", func() {
 		var msgs []tbp.Message
 		for {
 			var msg tbp.Message
