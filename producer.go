@@ -28,12 +28,11 @@ type ProducerOptions struct {
 	AfterPush func(*ProducerPush, error)
 }
 
-func (o *ProducerOptions) norm(name string) error {
+func (o *ProducerOptions) norm(name string) {
 	o.WriterOptions.norm(name)
 	if o.Interval <= 0 {
 		o.Interval = time.Minute
 	}
-	return nil
 }
 
 // ProducerPush contains the state of the last push.
@@ -79,9 +78,7 @@ func NewProducerForRemote(ctx context.Context, remote *bfs.Object, opt *Producer
 	if opt != nil {
 		o = *opt
 	}
-	if err := o.norm(remote.Name()); err != nil {
-		return nil, err
-	}
+	o.norm(remote.Name())
 
 	ctx, stop := context.WithCancel(ctx)
 	p := &Producer{

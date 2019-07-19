@@ -3,7 +3,6 @@ package feedx
 import (
 	"bufio"
 	"context"
-	"fmt"
 	"io"
 	"time"
 
@@ -25,24 +24,16 @@ type WriterOptions struct {
 	LastMod time.Time
 }
 
-func (o *WriterOptions) norm(name string) error {
+func (o *WriterOptions) norm(name string) {
 	if o.Format == nil {
 		o.Format = DetectFormat(name)
-
-		if o.Format == nil {
-			return fmt.Errorf("feedx: unable to detect format from %q", name)
-		}
 	}
-
 	if o.Compression == nil {
 		o.Compression = DetectCompression(name)
 	}
-
 	if o.LastMod.IsZero() {
 		o.LastMod = time.Now()
 	}
-
-	return nil
 }
 
 // Writer encodes feeds to remote locations.

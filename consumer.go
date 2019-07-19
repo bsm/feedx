@@ -21,12 +21,11 @@ type ConsumerOptions struct {
 	AfterSync func(*ConsumerSync, error)
 }
 
-func (o *ConsumerOptions) norm(name string) error {
+func (o *ConsumerOptions) norm(name string) {
 	o.ReaderOptions.norm(name)
 	if o.Interval <= 0 {
 		o.Interval = time.Minute
 	}
-	return nil
 }
 
 // ConsumerSync contains the state of the last sync.
@@ -81,9 +80,7 @@ func NewConsumerForRemote(ctx context.Context, remote *bfs.Object, opt *Consumer
 	if opt != nil {
 		o = *opt
 	}
-	if err := o.norm(remote.Name()); err != nil {
-		return nil, err
-	}
+	o.norm(remote.Name())
 
 	ctx, stop := context.WithCancel(ctx)
 	c := &consumer{

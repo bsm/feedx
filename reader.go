@@ -2,7 +2,6 @@ package feedx
 
 import (
 	"context"
-	"fmt"
 	"io"
 	"time"
 
@@ -20,18 +19,13 @@ type ReaderOptions struct {
 	Compression Compression
 }
 
-func (o *ReaderOptions) norm(name string) error {
+func (o *ReaderOptions) norm(name string) {
 	if o.Format == nil {
 		o.Format = DetectFormat(name)
-
-		if o.Format == nil {
-			return fmt.Errorf("feedx: unable to detect format from %q", name)
-		}
 	}
 	if o.Compression == nil {
 		o.Compression = DetectCompression(name)
 	}
-	return nil
 }
 
 // Reader reads data from a remote feed.
@@ -52,9 +46,7 @@ func NewReader(ctx context.Context, remote *bfs.Object, opt *ReaderOptions) (*Re
 	if opt != nil {
 		o = *opt
 	}
-	if err := o.norm(remote.Name()); err != nil {
-		return nil, err
-	}
+	o.norm(remote.Name())
 
 	return &Reader{
 		remote: remote,

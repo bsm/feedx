@@ -2,6 +2,7 @@ package feedx
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"path"
@@ -10,6 +11,8 @@ import (
 
 	pbio "github.com/gogo/protobuf/io"
 )
+
+var errNoFormat = errors.New("feedx: no format detected")
 
 // Format represents the data format.
 type Format interface {
@@ -36,7 +39,7 @@ func DetectFormat(name string) Format {
 			return DetectFormat(name[0 : len(name)-len(ext)])
 		}
 	}
-	return nil
+	return (*noFormat)(nil)
 }
 
 // FormatDecoder methods
@@ -54,6 +57,13 @@ type FormatEncoder interface {
 
 	io.Closer
 }
+
+// --------------------------------------------------------------------
+
+type noFormat struct{}
+
+func (*noFormat) NewDecoder(r io.Reader) (FormatDecoder, error) { return nil, errNoFormat }
+func (*noFormat) NewEncoder(w io.Writer) (FormatEncoder, error) { return nil, errNoFormat }
 
 // --------------------------------------------------------------------
 
