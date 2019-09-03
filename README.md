@@ -17,7 +17,7 @@ producer = Feedx::Producer.new relation, 's3://my-bucket/feeds/users.json.gz'
 
 # Push a new feed every hour
 loop do
-  pusher.perform
+  producer.perform
   sleep(3600)
 end
 ```
