@@ -39,7 +39,7 @@ RSpec.describe Feedx::Stream do
     subject.create metadata: { 'x' => '5' } do |s|
       s.encode(Feedx::TestCase::Model.new('X'))
     end
-    expect(bucket.info('dir/file.json').metadata).to eq('x' => '5')
+    expect(bucket.info('dir/file.json').metadata).to eq('X' => '5')
   end
 
   it 'should decode' do

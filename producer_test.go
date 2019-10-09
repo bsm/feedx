@@ -64,6 +64,6 @@ var _ = Describe("Producer", func() {
 		info, err := obj.Head(ctx)
 		Expect(err).NotTo(HaveOccurred())
 		Expect(info.Size).To(BeNumerically("~", 75, 10))
-		Expect(info.Metadata).To(HaveKeyWithValue("x-feedx-last-modified", "1515151515000"))
+		Expect(info.Metadata).To(HaveKeyWithValue("X-Feedx-Last-Modified", "1515151515000"))
 	})
 })

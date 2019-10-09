@@ -13,8 +13,8 @@ import (
 var ErrNotModified = errors.New("feedx: not modified")
 
 const (
-	metaLastModified       = "x-feedx-last-modified"
-	metaPusherLastModified = "x-feedx-pusher-last-modified"
+	metaLastModified       = "X-Feedx-Last-Modified"
+	metaPusherLastModified = "X-Feedx-Pusher-Last-Modified"
 )
 
 // Timestamp with millisecond resolution
@@ -35,9 +35,9 @@ func remoteLastModified(ctx context.Context, obj *bfs.Object) (timestamp, error)
 		return 0, err
 	}
 
-	millis, _ := strconv.ParseInt(info.Metadata[metaLastModified], 10, 64)
+	millis, _ := strconv.ParseInt(info.Metadata.Get(metaLastModified), 10, 64)
 	if millis == 0 {
-		millis, _ = strconv.ParseInt(info.Metadata[metaPusherLastModified], 10, 64)
+		millis, _ = strconv.ParseInt(info.Metadata.Get(metaPusherLastModified), 10, 64)
 	}
 	return timestamp(millis), nil
 }

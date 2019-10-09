@@ -147,7 +147,7 @@ func (w *Writer) ensureCreated() error {
 	if w.bw == nil {
 		ts := timestampFromTime(w.opt.LastMod)
 		bw, err := w.remote.Create(w.ctx, &bfs.WriteOptions{
-			Metadata: map[string]string{metaLastModified: ts.String()},
+			Metadata: bfs.Metadata{metaLastModified: ts.String()},
 		})
 		if err != nil {
 			return err

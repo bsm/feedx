@@ -31,8 +31,9 @@ module Feedx
       remote_rev = nil
 
       if @cache
+        metadata   = @stream.blob.info.metadata
         local_rev  = @cache.read.to_i
-        remote_rev = @stream.blob.info.metadata[META_LAST_MODIFIED].to_i
+        remote_rev = (metadata[META_LAST_MODIFIED] || metadata[META_LAST_MODIFIED_DC]).to_i
         return false if remote_rev.positive? && remote_rev <= local_rev
       end
 

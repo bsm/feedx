@@ -1,5 +1,6 @@
 module Feedx
-  META_LAST_MODIFIED = 'x-feedx-last-modified'.freeze
+  META_LAST_MODIFIED = 'X-Feedx-Last-Modified'.freeze
+  META_LAST_MODIFIED_DC = META_LAST_MODIFIED.downcase.freeze
 
   autoload :Cache, 'feedx/cache'
   autoload :Compression, 'feedx/compression'
