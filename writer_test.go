@@ -33,7 +33,7 @@ var _ = Describe("Writer", func() {
 		info, err := plain.Head(ctx)
 		Expect(err).NotTo(HaveOccurred())
 		Expect(info.Size).To(Equal(int64(10000)))
-		Expect(info.Metadata).To(Equal(map[string]string{"x-feedx-last-modified": "1515151515123"}))
+		Expect(info.Metadata).To(Equal(bfs.Metadata{"X-Feedx-Last-Modified": "1515151515123"}))
 	})
 
 	It("should write compressed", func() {
@@ -49,7 +49,7 @@ var _ = Describe("Writer", func() {
 		info, err := compressed.Head(ctx)
 		Expect(err).NotTo(HaveOccurred())
 		Expect(info.Size).To(BeNumerically("~", 50, 20))
-		Expect(info.Metadata).To(Equal(map[string]string{"x-feedx-last-modified": "1515151515123"}))
+		Expect(info.Metadata).To(Equal(bfs.Metadata{"X-Feedx-Last-Modified": "1515151515123"}))
 	})
 
 	It("should encode", func() {
@@ -59,11 +59,11 @@ var _ = Describe("Writer", func() {
 		info, err := plain.Head(ctx)
 		Expect(err).NotTo(HaveOccurred())
 		Expect(info.Size).To(BeNumerically("~", 470, 10))
-		Expect(info.Metadata).To(Equal(map[string]string{"x-feedx-last-modified": "1515151515123"}))
+		Expect(info.Metadata).To(Equal(bfs.Metadata{"X-Feedx-Last-Modified": "1515151515123"}))
 
 		info, err = compressed.Head(ctx)
 		Expect(err).NotTo(HaveOccurred())
 		Expect(info.Size).To(BeNumerically("~", 76, 10))
-		Expect(info.Metadata).To(Equal(map[string]string{"x-feedx-last-modified": "1515151515123"}))
+		Expect(info.Metadata).To(Equal(bfs.Metadata{"X-Feedx-Last-Modified": "1515151515123"}))
 	})
 })

@@ -34,7 +34,8 @@ module Feedx
       local_rev = last_mod.is_a?(Integer) ? last_mod : (last_mod.to_f * 1000).floor
 
       begin
-        remote_rev = @stream.blob.info.metadata[META_LAST_MODIFIED].to_i
+        metadata   = @stream.blob.info.metadata
+        remote_rev = (metadata[META_LAST_MODIFIED] || metadata[META_LAST_MODIFIED_DC]).to_i
         return -1 unless local_rev > remote_rev
       rescue BFS::FileNotFound # rubocop:disable Lint/HandleExceptions
       end if local_rev.positive?

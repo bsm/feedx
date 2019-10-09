@@ -48,7 +48,7 @@ RSpec.describe Feedx::Producer do
 
   it 'should support last-modified' do
     described_class.perform 'mock:///dir/file.json', last_modified: Time.at(1515151515), enum: enumerable
-    expect(bucket.info('dir/file.json').metadata).to eq('x-feedx-last-modified' => '1515151515000')
+    expect(bucket.info('dir/file.json').metadata).to eq('X-Feedx-Last-Modified' => '1515151515000')
   end
 
   it 'should perform conditionally' do
