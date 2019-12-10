@@ -140,14 +140,10 @@ func (p *Producer) push() (*ProducerPush, error) {
 		wopt.LastMod = modTime
 	}
 
-	// retrieve original last modified time
-	lastMod, err := remoteLastModified(p.ctx, p.remote)
-	if err != nil {
+	// retrieve original last modified time, skip if not modified
+	if rts, err := remoteLastModified(p.ctx, p.remote); err != nil {
 		return nil, err
-	}
-
-	// skip push if not modified
-	if lastMod.Time().Equal(wopt.LastMod) {
+	} else if rts == timestampFromTime(wopt.LastMod) {
 		return &ProducerPush{Producer: p}, nil
 	}
 

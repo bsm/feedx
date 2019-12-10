@@ -37,7 +37,8 @@ module Feedx
         metadata   = @stream.blob.info.metadata
         remote_rev = (metadata[META_LAST_MODIFIED] || metadata[META_LAST_MODIFIED_DC]).to_i
         return -1 unless local_rev > remote_rev
-      rescue BFS::FileNotFound # rubocop:disable Lint/HandleExceptions
+      rescue BFS::FileNotFound
+        nil
       end if local_rev.positive?
 
       @stream.create metadata: { META_LAST_MODIFIED => local_rev.to_s } do |fmt|
