@@ -3,7 +3,7 @@ package feedx
 import (
 	"bufio"
 	"context"
-  "errors"
+	"errors"
 	"io"
 	"time"
 
@@ -115,10 +115,10 @@ func (w *Writer) NumWritten() int {
 // Discard closes the writer and discards the contents.
 func (w *Writer) Discard() error {
 	w.cancel()
-  if err := w.Commit(); err != nil && !errors.Is(err, context.Canceled) {
-    return err
-  }
-  return nil
+	if err := w.Commit(); err != nil && !errors.Is(err, context.Canceled) {
+		return err
+	}
+	return nil
 }
 
 // Commit closes the writer and persists the contents.
