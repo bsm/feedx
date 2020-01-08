@@ -2,6 +2,11 @@ matrix:
   include:
     - language: ruby
       rvm:
+        - 2.7
+      before_install:
+        - gem install bundler
+    - language: ruby
+      rvm:
         - 2.6
       before_install:
         - gem install bundler
@@ -13,10 +18,5 @@ matrix:
     - language: go
       go:
         - 1.13.x
-      env:
-        - GO111MODULE=on
-    - language: go
-      go:
-        - 1.12.x
       env:
         - GO111MODULE=on
