@@ -8,7 +8,7 @@ module Feedx
     include Enumerable
 
     # See constructor.
-    def self.each(url, klass, opts={}, &block)
+    def self.each(url, klass, opts = {}, &block)
       new(url, klass, opts).each(&block)
     end
 
@@ -19,7 +19,7 @@ module Feedx
     # @option opts [Hash] :format_options format decode options. Default: {}.
     # @option opts [Symbol,Class<Feedx::Compression::Abstract>] :compress enable compression. Default: from file extension.
     # @option opts [Feedx::Cache::Value] :cache cache value to store remote last modified time and consume conditionally.
-    def initialize(url, klass, opts={})
+    def initialize(url, klass, opts = {})
       @klass    = klass
       @stream   = Feedx::Stream.new(url, opts)
       @fmt_opts = opts[:format_options] || {}
