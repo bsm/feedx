@@ -31,12 +31,9 @@ var fixture = tbp.Message{
 }
 
 func writeMulti(obj *bfs.Object, numEntries int) error {
-	w, err := feedx.NewWriter(context.Background(), obj, &feedx.WriterOptions{
+	w := feedx.NewWriter(context.Background(), obj, &feedx.WriterOptions{
 		LastMod: time.Unix(1515151515, 123456789),
 	})
-	if err != nil {
-		return err
-	}
 	defer w.Discard()
 
 	for i := 0; i < numEntries; i++ {

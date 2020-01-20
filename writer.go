@@ -3,7 +3,6 @@ package feedx
 import (
 	"bufio"
 	"context"
-	"errors"
 	"io"
 	"time"
 
@@ -40,33 +39,29 @@ func (o *WriterOptions) norm(name string) {
 // Writer encodes feeds to remote locations.
 type Writer struct {
 	ctx    context.Context
-	cancel context.CancelFunc
-
 	remote *bfs.Object
 	opt    WriterOptions
 	num    int
 
-	bw io.WriteCloser // bfs writer
+	bw bfs.Writer
 	cw io.WriteCloser // compression writer
 	ww *bufio.Writer
 	fe FormatEncoder
 }
 
 // NewWriter inits a new feed writer.
-func NewWriter(ctx context.Context, remote *bfs.Object, opt *WriterOptions) (*Writer, error) {
+func NewWriter(ctx context.Context, remote *bfs.Object, opt *WriterOptions) *Writer {
 	var o WriterOptions
 	if opt != nil {
 		o = *opt
 	}
 	o.norm(remote.Name())
 
-	ctx, cancel := context.WithCancel(ctx)
 	return &Writer{
 		ctx:    ctx,
-		cancel: cancel,
 		remote: remote,
 		opt:    o,
-	}, nil
+	}
 }
 
 // Write write raw bytes to the feed.
@@ -114,16 +109,27 @@ func (w *Writer) NumWritten() int {
 
 // Discard closes the writer and discards the contents.
 func (w *Writer) Discard() error {
-	w.cancel()
-	if err := w.Commit(); err != nil && !errors.Is(err, context.Canceled) {
-		return err
+	err := w.close()
+	if w.bw != nil {
+		if e := w.bw.Discard(); e != nil {
+			err = e
+		}
 	}
-	return nil
+	return err
 }
 
 // Commit closes the writer and persists the contents.
 func (w *Writer) Commit() error {
-	var err error
+	err := w.close()
+	if w.bw != nil {
+		if e := w.bw.Commit(); e != nil {
+			err = e
+		}
+	}
+	return err
+}
+
+func (w *Writer) close() (err error) {
 	if w.fe != nil {
 		if e := w.fe.Close(); e != nil {
 			err = e
@@ -136,11 +142,6 @@ func (w *Writer) Commit() error {
 	}
 	if w.cw != nil {
 		if e := w.cw.Close(); e != nil {
-			err = e
-		}
-	}
-	if w.bw != nil {
-		if e := w.bw.Close(); e != nil {
 			err = e
 		}
 	}

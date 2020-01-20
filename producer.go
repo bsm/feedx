@@ -147,10 +147,7 @@ func (p *Producer) push() (*ProducerPush, error) {
 		return &ProducerPush{Producer: p}, nil
 	}
 
-	writer, err := NewWriter(p.ctx, p.remote, &wopt)
-	if err != nil {
-		return nil, err
-	}
+	writer := NewWriter(p.ctx, p.remote, &wopt)
 	defer writer.Discard()
 
 	if err := p.pfn(writer); err != nil {
