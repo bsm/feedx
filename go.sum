@@ -1,9 +1,7 @@
-github.com/bmatcuk/doublestar v1.1.5 h1:2bNwBOmhyFEFcoB3tGvTD5xanq+4kyOZlB8wFYbMjkk=
-github.com/bmatcuk/doublestar v1.1.5/go.mod h1:wiQtGV+rzVYxB7WIlirSN++5HPtPlXEo9MEoZQC/PmE=
 github.com/bmatcuk/doublestar v1.2.2 h1:oC24CykoSAB8zd7XgruHo33E0cHJf/WhQA/7BeXj+x0=
 github.com/bmatcuk/doublestar v1.2.2/go.mod h1:wiQtGV+rzVYxB7WIlirSN++5HPtPlXEo9MEoZQC/PmE=
-github.com/bsm/bfs v0.8.1 h1:PS+kH6Pu8IsKUrxOp8E/B6/ASLvGEz2kIeX0GM4DdPc=
-github.com/bsm/bfs v0.8.1/go.mod h1:cVv0jyqUY/jbHoG/WYPuWvOaOhW/HZ4jl7/JMlypvAE=
+github.com/bsm/bfs v0.9.0 h1:7sUB3a5ZzzhBlCELY+2pqCaI6MbO7F2a0jhIgHihhFs=
+github.com/bsm/bfs v0.9.0/go.mod h1:N3md8kQvlteRDcfc8tqw759yW98dhj+6seWEVcg4CmM=
 github.com/fsnotify/fsnotify v1.4.7 h1:IXs+QLmnXW2CcXuY+8Mzv/fWEsPGWxqefPtCP5CnV9I=
 github.com/fsnotify/fsnotify v1.4.7/go.mod h1:jwhsz4b93w/PPRr/qN1Yymfu8t87LnFCMoQvtojpjFo=
 github.com/gogo/protobuf v1.3.1 h1:DqDEcV5aeaTmdFBePNpYsp3FlcVH/2ISVVM9Qf8PSls=

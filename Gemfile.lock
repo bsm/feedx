@@ -1,7 +1,7 @@
 PATH
   remote: .
   specs:
-    feedx (0.9.2)
+    feedx (0.10.0)
       bfs (>= 0.5.0)
 
 GEM
@@ -42,7 +42,7 @@ GEM
     rubocop-performance (1.5.2)
       rubocop (>= 0.71.0)
     ruby-progressbar (1.10.1)
-    unicode-display_width (1.6.0)
+    unicode-display_width (1.6.1)
 
 PLATFORMS
   ruby

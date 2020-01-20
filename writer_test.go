@@ -21,10 +21,9 @@ var _ = Describe("Writer", func() {
 	})
 
 	It("should write plain", func() {
-		w, err := feedx.NewWriter(context.Background(), plain, &feedx.WriterOptions{
+		w := feedx.NewWriter(context.Background(), plain, &feedx.WriterOptions{
 			LastMod: time.Unix(1515151515, 123456789),
 		})
-		Expect(err).NotTo(HaveOccurred())
 		defer w.Discard()
 
 		Expect(w.Write(bytes.Repeat([]byte{'x'}, 10000))).To(Equal(10000))
@@ -37,10 +36,9 @@ var _ = Describe("Writer", func() {
 	})
 
 	It("should write compressed", func() {
-		w, err := feedx.NewWriter(context.Background(), compressed, &feedx.WriterOptions{
+		w := feedx.NewWriter(context.Background(), compressed, &feedx.WriterOptions{
 			LastMod: time.Unix(1515151515, 123456789),
 		})
-		Expect(err).NotTo(HaveOccurred())
 		defer w.Discard()
 
 		Expect(w.Write(bytes.Repeat([]byte{'x'}, 10000))).To(Equal(10000))

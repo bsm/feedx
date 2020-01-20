@@ -1,8 +1,7 @@
 module github.com/bsm/feedx
 
 require (
-	github.com/bmatcuk/doublestar v1.2.2 // indirect
-	github.com/bsm/bfs v0.8.1
+	github.com/bsm/bfs v0.9.0
 	github.com/gogo/protobuf v1.3.1
 	github.com/golang/protobuf v1.3.2
 	github.com/onsi/ginkgo v1.10.2
