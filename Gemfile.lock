@@ -1,7 +1,7 @@
 PATH
   remote: .
   specs:
-    feedx (0.10.0)
+    feedx (0.10.1)
       bfs (>= 0.5.0)
 
 GEM
@@ -15,7 +15,7 @@ GEM
     parallel (1.19.1)
     parser (2.7.0.2)
       ast (~> 2.4.0)
-    pbio (0.2.0)
+    pbio (0.2.1)
       google-protobuf
     rainbow (3.0.0)
     rake (13.0.1)
