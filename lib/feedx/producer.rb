@@ -26,6 +26,7 @@ module Feedx
       @stream   = Feedx::Stream.new(url, opts)
       @last_mod = opts[:last_modified]
       @fmt_opts = opts[:format_options] || {}
+      @enc_opts = opts[:encoding_options] || {}
     end
 
     def perform
@@ -41,7 +42,7 @@ module Feedx
         nil
       end if local_rev.positive?
 
-      @stream.create metadata: { META_LAST_MODIFIED => local_rev.to_s } do |fmt|
+      @stream.create @enc_opts.merge(metadata: { META_LAST_MODIFIED => local_rev.to_s }) do |fmt|
         iter = enum.respond_to?(:find_each) ? :find_each : :each
         enum.send(iter) {|rec| fmt.encode(rec, **@fmt_opts) }
       end

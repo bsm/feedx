@@ -64,4 +64,12 @@ RSpec.describe Feedx::Producer do
     size = described_class.perform 'mock:///dir/file.json', last_modified: Time.at(1515151516), enum: enumerable
     expect(size).to eq(15900)
   end
+
+  it 'should accept encoding/permissions options for stream creation' do
+    stream = double(Feedx::Stream)
+    allow(stream).to receive_message_chain(:blob, :info) { BFS::FileInfo.new('', 0, 0) }
+    expect(stream).to receive(:create).with(perm: 0o644, encoding: 'binary', metadata: { 'X-Feedx-Last-Modified'=>'0' })
+    expect(Feedx::Stream).to receive(:new).and_return(stream)
+    described_class.perform 'mock:///dir/file.json', enum: enumerable, encoding_options: { perm: 0o644, encoding: 'binary' }
+  end
 end
