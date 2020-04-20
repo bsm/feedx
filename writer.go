@@ -1,7 +1,6 @@
 package feedx
 
 import (
-	"bufio"
 	"context"
 	"io"
 	"time"
@@ -45,7 +44,6 @@ type Writer struct {
 
 	bw bfs.Writer
 	cw io.WriteCloser // compression writer
-	ww *bufio.Writer
 	fe FormatEncoder
 }
 
@@ -69,7 +67,7 @@ func (w *Writer) Write(p []byte) (int, error) {
 	if err := w.ensureCreated(); err != nil {
 		return 0, err
 	}
-	return w.ww.Write(p)
+	return w.cw.Write(p)
 }
 
 // WriteString write a raw string to the feed.
@@ -77,7 +75,7 @@ func (w *Writer) WriteString(s string) (int, error) {
 	if err := w.ensureCreated(); err != nil {
 		return 0, err
 	}
-	return w.ww.WriteString(s)
+	return io.WriteString(w.cw, s)
 }
 
 // Encode appends a value to the feed.
@@ -87,7 +85,7 @@ func (w *Writer) Encode(v interface{}) error {
 	}
 
 	if w.fe == nil {
-		fe, err := w.opt.Format.NewEncoder(w.ww)
+		fe, err := w.opt.Format.NewEncoder(w.cw)
 		if err != nil {
 			return err
 		}
@@ -135,11 +133,6 @@ func (w *Writer) close() (err error) {
 			err = e
 		}
 	}
-	if w.ww != nil {
-		if e := w.ww.Flush(); e != nil {
-			err = e
-		}
-	}
 	if w.cw != nil {
 		if e := w.cw.Close(); e != nil {
 			err = e
@@ -166,10 +159,6 @@ func (w *Writer) ensureCreated() error {
 			return err
 		}
 		w.cw = cw
-	}
-
-	if w.ww == nil {
-		w.ww = bufio.NewWriter(w.cw)
 	}
 
 	return nil
