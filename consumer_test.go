@@ -7,7 +7,6 @@ import (
 
 	"github.com/bsm/bfs"
 	"github.com/bsm/feedx"
-	tbp "github.com/golang/protobuf/proto/proto3_proto"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 )
@@ -23,9 +22,9 @@ var _ = Describe("Consumer", func() {
 
 		var err error
 		subject, err = feedx.NewConsumerForRemote(ctx, obj, nil, func(r *feedx.Reader) (interface{}, error) {
-			var msgs []tbp.Message
+			var msgs []MockMessage
 			for {
-				var msg tbp.Message
+				var msg MockMessage
 				if err := r.Decode(&msg); err == io.EOF {
 					break
 				}
@@ -47,7 +46,7 @@ var _ = Describe("Consumer", func() {
 		Expect(subject.LastSync()).To(BeTemporally("~", time.Now(), time.Second))
 		Expect(subject.LastModified()).To(BeTemporally("~", time.Unix(1515151515, 0), time.Second))
 		Expect(subject.NumRead()).To(Equal(2))
-		Expect(subject.Data()).To(Equal([]tbp.Message{fixture, fixture}))
+		Expect(subject.Data()).To(Equal([]MockMessage{fixture, fixture}))
 		Expect(subject.Close()).To(Succeed())
 	})
 })

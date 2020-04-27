@@ -8,12 +8,10 @@ import (
 
 	"github.com/bsm/bfs"
 	"github.com/bsm/feedx"
-	tbp "github.com/golang/protobuf/proto/proto3_proto"
+	"github.com/gogo/protobuf/proto"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 )
-
-// ------------------------------------------------------------------------
 
 var memStore *bfs.InMem
 
@@ -24,11 +22,32 @@ func init() {
 	})
 }
 
-var fixture = tbp.Message{
-	Name:       "Joe",
-	Hilarity:   tbp.Message_BILL_BAILEY,
-	HeightInCm: 180,
+// ------------------------------------------------------------------------
+
+type Mock_Enum int32
+
+const (
+	Mock_UNKNOWN Mock_Enum = 0
+	Mock_FIRST   Mock_Enum = 3
+)
+
+type MockMessage struct {
+	Name   string    `protobuf:"bytes,1,opt,name=name,proto3"`
+	Enum   Mock_Enum `protobuf:"varint,2,opt,name=enum,proto3"`
+	Height uint32    `protobuf:"varint,3,opt,name=height"`
 }
+
+func (m *MockMessage) Reset()         { *m = MockMessage{} }
+func (m *MockMessage) String() string { return proto.CompactTextString(m) }
+func (*MockMessage) ProtoMessage()    {}
+
+var fixture = MockMessage{
+	Name:   "Joe",
+	Enum:   Mock_FIRST,
+	Height: 180,
+}
+
+// ------------------------------------------------------------------------
 
 func writeMulti(obj *bfs.Object, numEntries int) error {
 	w := feedx.NewWriter(context.Background(), obj, &feedx.WriterOptions{

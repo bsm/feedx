@@ -5,7 +5,6 @@ import (
 	"io"
 
 	"github.com/bsm/feedx"
-	tbp "github.com/golang/protobuf/proto/proto3_proto"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 )
@@ -27,15 +26,15 @@ var _ = Describe("Format", func() {
 		Expect(err).NotTo(HaveOccurred())
 		defer dec.Close()
 
-		v1 := new(tbp.Message)
+		v1 := new(MockMessage)
 		Expect(dec.Decode(v1)).To(Succeed())
 		Expect(v1.Name).To(Equal("Joe"))
 
-		v2 := new(tbp.Message)
+		v2 := new(MockMessage)
 		Expect(dec.Decode(v2)).To(Succeed())
 		Expect(v2.Name).To(Equal("Joe"))
 
-		v3 := new(tbp.Message)
+		v3 := new(MockMessage)
 		Expect(dec.Decode(v3)).To(MatchError(io.EOF))
 
 		Expect(dec.Close()).To(Succeed())

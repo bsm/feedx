@@ -8,7 +8,6 @@ import (
 	"github.com/bsm/feedx"
 
 	"github.com/bsm/bfs"
-	tbp "github.com/golang/protobuf/proto/proto3_proto"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 )
@@ -34,14 +33,14 @@ var _ = Describe("Reader", func() {
 	It("should read", func() {
 		data, err := ioutil.ReadAll(subject)
 		Expect(err).NotTo(HaveOccurred())
-		Expect(len(data)).To(BeNumerically("~", 140, 20))
+		Expect(len(data)).To(BeNumerically("~", 110, 20))
 		Expect(subject.NumRead()).To(Equal(0))
 	})
 
 	It("should decode", func() {
-		var msgs []tbp.Message
+		var msgs []MockMessage
 		for {
-			var msg tbp.Message
+			var msg MockMessage
 			err := subject.Decode(&msg)
 			if err == io.EOF {
 				break
@@ -50,7 +49,7 @@ var _ = Describe("Reader", func() {
 			msgs = append(msgs, msg)
 		}
 
-		Expect(msgs).To(Equal([]tbp.Message{fixture, fixture, fixture}))
+		Expect(msgs).To(Equal([]MockMessage{fixture, fixture, fixture}))
 		Expect(subject.NumRead()).To(Equal(3))
 	})
 })

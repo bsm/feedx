@@ -56,7 +56,7 @@ var _ = Describe("Writer", func() {
 
 		info, err := plain.Head(ctx)
 		Expect(err).NotTo(HaveOccurred())
-		Expect(info.Size).To(BeNumerically("~", 470, 10))
+		Expect(info.Size).To(BeNumerically("~", 370, 10))
 		Expect(info.Metadata).To(Equal(bfs.Metadata{"X-Feedx-Last-Modified": "1515151515123"}))
 
 		info, err = compressed.Head(ctx)
