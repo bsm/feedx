@@ -8,7 +8,7 @@ Gem::Specification.new do |s|
   s.homepage      = 'https://github.com/bsm/feedx'
   s.license       = 'Apache-2.0'
 
-  s.files         = `git ls-files -z`.split("\x0").reject {|f| f.match(%r{^spec/}) }
+  s.files         = `git ls-files -z`.split("\x0").reject {|f| f.start_with?('spec/') }
   s.test_files    = `git ls-files -z -- spec/*`.split("\x0")
   s.require_paths = ['lib']
   s.required_ruby_version = '>= 2.4'

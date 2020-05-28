@@ -36,10 +36,13 @@ RSpec.describe Feedx::Consumer do
 
   private
 
-  def mock_produce!(opts = {})
+  def mock_produce!(enum: mock_enum, **opts)
     url = 'mock:///dir/file.json'
-    opts[:enum] ||= %w[x y z].map {|t| Feedx::TestCase::Model.new(t) } * 100
-    Feedx::Producer.perform url, opts
+    Feedx::Producer.perform url, enum: enum, **opts
     url
+  end
+
+  def mock_enum
+    %w[x y z].map {|t| Feedx::TestCase::Model.new(t) } * 100
   end
 end

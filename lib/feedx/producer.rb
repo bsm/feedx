@@ -6,8 +6,8 @@ module Feedx
   # Produces a relation as an encoded feed to a remote location.
   class Producer
     # See constructor.
-    def self.perform(url, opts = {}, &block)
-      new(url, opts, &block).perform
+    def self.perform(url, **opts, &block)
+      new(url, **opts, &block).perform
     end
 
     # @param [String] url the destination URL.
@@ -19,11 +19,11 @@ module Feedx
     # @option opts [Time,Proc] :last_modified the last modified time, used to determine if a push is necessary.
     # @yield A block factory to generate the relation or enumerator.
     # @yieldreturn [Enumerable,ActiveRecord::Relation] the relation or enumerator to stream.
-    def initialize(url, opts = {}, &block)
+    def initialize(url, **opts, &block)
       @enum = opts[:enum] || block
       raise ArgumentError, "#{self.class.name}.new expects an :enum option or a block factory" unless @enum
 
-      @stream   = Feedx::Stream.new(url, opts)
+      @stream   = Feedx::Stream.new(url, **opts)
       @last_mod = opts[:last_modified]
       @fmt_opts = opts[:format_options] || {}
     end
