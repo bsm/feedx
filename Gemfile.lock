@@ -1,7 +1,7 @@
 PATH
   remote: .
   specs:
-    feedx (0.10.1)
+    feedx (0.10.2)
       bfs (>= 0.5.0)
 
 GEM
