@@ -13,13 +13,32 @@ RSpec.describe Feedx::Stream do
     end.to raise_error(/unable to detect format/)
   end
 
+  it 'should accept custom formats' do
+    format = Class.new do
+      def encoder(io, &block)
+        Feedx::Format::JSON::Encoder.open(io, &block)
+      end
+
+      def decoder(io, &block)
+        Feedx::Format::JSON::Decoder.open(io, &block)
+      end
+    end
+
+    stream = described_class.new('mock:///dir/file.txt', format: format.new)
+    stream.create {|s| s.encode Feedx::TestCase::Model.new('X') }
+
+    expect(bucket.read('dir/file.txt')).to eq(
+      %({"title":"X","updated_at":"2018-01-05 11:25:15 UTC"}\n),
+    )
+  end
+
   it 'should encode' do
     subject.create do |s|
       s.encode(Feedx::TestCase::Model.new('X'))
       s.encode(Feedx::TestCase::Model.new('Y'))
     end
 
-    expect(bucket.open('dir/file.json').read).to eq(
+    expect(bucket.read('dir/file.json')).to eq(
       %({"title":"X","updated_at":"2018-01-05 11:25:15 UTC"}\n) +
       %({"title":"Y","updated_at":"2018-01-05 11:25:15 UTC"}\n),
     )

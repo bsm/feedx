@@ -1,16 +1,20 @@
 require 'json'
 
 class Feedx::Format::JSON < Feedx::Format::Abstract
-  def decode(obj, **)
-    line = @io.gets
-    return unless line
+  class Decoder < Feedx::Format::Abstract::Decoder
+    def decode(target, **)
+      line = @io.gets
+      return unless line
 
-    obj = obj.allocate if obj.is_a?(Class)
-    obj.from_json(line)
-    obj
+      target = target.allocate if target.is_a?(Class)
+      target.from_json(line)
+      target
+    end
   end
 
-  def encode(msg, **opts)
-    @io.write msg.to_json(**opts) << "\n"
+  class Encoder < Feedx::Format::Abstract::Encoder
+    def encode(msg, **opts)
+      @io.write msg.to_json(**opts) << "\n"
+    end
   end
 end

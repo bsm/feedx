@@ -5,10 +5,15 @@ module Feedx
     autoload :Protobuf, 'feedx/format/protobuf'
 
     class << self
-      def register(ext, kind)
-        raise ArgumentError, "#{kind} is not a subclass of Feedx::Format::Abstract" unless kind.is_a?(Class) && kind < Abstract
+      def validate!(kind)
+        raise ArgumentError, "#{kind} does not implement #encoder(io, &block)" unless kind.respond_to?(:encoder)
+        raise ArgumentError, "#{kind} does not implement #decoder(io, &block)" unless kind.respond_to?(:decoder)
 
-        registry[ext.to_s] = kind
+        kind
+      end
+
+      def register(ext, kind)
+        registry[ext.to_s] = validate!(kind)
       end
 
       def resolve(name)
@@ -40,13 +45,13 @@ module Feedx
       end
 
       def _resolve(name)
-        name  = name.to_s
-        klass = registry[name]
-        if klass.is_a?(Symbol)
-          klass = const_get(klass)
-          registry[name.to_s] = klass
+        name = name.to_s
+        kind = registry[name]
+        if kind.is_a?(Symbol)
+          kind = const_get(kind).new
+          registry[name.to_s] = kind
         end
-        klass
+        kind
       end
     end
   end

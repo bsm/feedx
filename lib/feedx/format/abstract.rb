@@ -1,25 +1,54 @@
 class Feedx::Format::Abstract
-  def initialize(io)
-    @io = io
+  def decoder(io, &block)
+    self.class::Decoder.open(io, &block)
   end
 
-  def eof?
-    @io.eof?
+  def encoder(io, &block)
+    self.class::Encoder.open(io, &block)
   end
 
-  def decode_each(klass, **opts)
-    if block_given?
-      yield decode(klass, **opts) until eof?
-    else
-      Enumerator.new {|y| y << decode(klass, **opts) until eof? }
+  class Wrapper
+    def self.open(io)
+      inst = new(io)
+      yield inst
+    ensure
+      inst&.close
+    end
+
+    def initialize(io)
+      @io = io
     end
   end
 
-  def decode(_klass, **)
-    raise 'Not implemented'
+  class Decoder < Wrapper
+    def eof?
+      @io.eof?
+    end
+
+    def decode_each(target, **opts)
+      if block_given?
+        yield decode(target, **opts) until eof?
+      else
+        Enumerator.new do |acc|
+          acc << decode(target, **opts) until eof?
+        end
+      end
+    end
+
+    def decode(_target, **)
+      raise 'Not implemented'
+    end
+
+    def close; end
   end
 
-  def encode(_msg, **)
-    raise 'Not implemented'
+  class Encoder < Wrapper
+    def encode(_msg, **)
+      raise 'Not implemented'
+    end
+
+    def close
+      @io.flush if @io.respond_to?(:flush)
+    end
   end
 end
