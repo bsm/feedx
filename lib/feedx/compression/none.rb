@@ -1,9 +1,9 @@
 class Feedx::Compression::None < Feedx::Compression::Abstract
-  def self.reader(io, &block)
-    block.call(io)
+  def reader(io)
+    yield(io)
   end
 
-  def self.writer(io, &block)
-    block.call(io)
+  def writer(io)
+    yield(io)
   end
 end

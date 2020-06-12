@@ -23,8 +23,9 @@ module Feedx
     def open(**opts)
       @blob.open(**opts) do |io|
         @compress.reader(io) do |cio|
-          fmt = @format.new(cio)
-          yield fmt
+          @format.decoder(cio) do |fmt|
+            yield fmt
+          end
         end
       end
     end
@@ -36,8 +37,9 @@ module Feedx
     def create(**opts)
       @blob.create(**opts) do |io|
         @compress.writer(io) do |cio|
-          fmt = @format.new(cio)
-          yield fmt
+          @format.encoder(cio) do |fmt|
+            yield fmt
+          end
         end
       end
     end
@@ -48,13 +50,10 @@ module Feedx
       case val
       when nil
         Feedx::Format.detect(@blob.path)
-      when Class
-        parent = Feedx::Format::Abstract
-        raise ArgumentError, "Class #{val} must extend #{parent}" unless val < parent
-
-        val
-      else
+      when String, Symbol
         Feedx::Format.resolve(val)
+      else
+        Feedx::Format.validate!(val)
       end
     end
 
@@ -62,13 +61,10 @@ module Feedx
       case val
       when nil
         Feedx::Compression.detect(@blob.path)
-      when Class
-        parent = Feedx::Compression::Abstract
-        raise ArgumentError, "Class #{val} must extend #{parent}" unless val < parent
-
-        val
-      else
+      when String, Symbol
         Feedx::Compression.resolve(val)
+      else
+        Feedx::Compression.validate!(val)
       end
     end
   end

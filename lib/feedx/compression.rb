@@ -5,12 +5,19 @@ module Feedx
     autoload :Gzip, 'feedx/compression/gzip'
 
     class << self
+      def validate!(kind)
+        raise ArgumentError, "#{kind} does not implement #reader(io, &block)" unless kind.respond_to?(:reader)
+        raise ArgumentError, "#{kind} does not implement #writer(io, &block)" unless kind.respond_to?(:writer)
+
+        kind
+      end
+
       def resolve(name)
         case name.to_s
         when 'gz', 'gzip'
-          Gzip
+          Gzip.new
         when ''
-          None
+          None.new
         else
           raise ArgumentError, "invalid compression #{name}"
         end
@@ -18,9 +25,9 @@ module Feedx
 
       def detect(path)
         if File.extname(path)[-1] == 'z'
-          Gzip
+          Gzip.new
         else
-          None
+          None.new
         end
       end
     end

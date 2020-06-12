@@ -1,25 +1,23 @@
 require 'zlib'
 
 class Feedx::Compression::Gzip < Feedx::Compression::Abstract
-  class << self
-    def reader(io, &block)
-      force_binmode(io)
-      Zlib::GzipReader.wrap(io, &block)
-    end
+  def reader(io, &block)
+    force_binmode(io)
+    Zlib::GzipReader.wrap(io, &block)
+  end
 
-    def writer(io, &block)
-      force_binmode(io)
-      Zlib::GzipWriter.wrap(io, &block)
-    end
+  def writer(io, &block)
+    force_binmode(io)
+    Zlib::GzipWriter.wrap(io, &block)
+  end
 
-    private
+  private
 
-    def force_binmode(io)
-      if io.respond_to?(:binmode)
-        io.binmode
-      elsif io.respond_to?(:set_encoding)
-        io.set_encoding(Encoding::BINARY)
-      end
+  def force_binmode(io)
+    if io.respond_to?(:binmode)
+      io.binmode
+    elsif io.respond_to?(:set_encoding)
+      io.set_encoding(Encoding::BINARY)
     end
   end
 end
