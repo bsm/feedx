@@ -2,6 +2,7 @@ module Feedx
   module Format
     autoload :Abstract, 'feedx/format/abstract'
     autoload :JSON, 'feedx/format/json'
+    autoload :Parquet, 'feedx/format/parquet'
     autoload :Protobuf, 'feedx/format/protobuf'
 
     class << self

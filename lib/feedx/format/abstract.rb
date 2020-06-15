@@ -1,21 +1,21 @@
 class Feedx::Format::Abstract
-  def decoder(io, &block)
-    self.class::Decoder.open(io, &block)
+  def decoder(io, **opts, &block)
+    self.class::Decoder.open(io, **opts, &block)
   end
 
-  def encoder(io, &block)
-    self.class::Encoder.open(io, &block)
+  def encoder(io, **opts, &block)
+    self.class::Encoder.open(io, **opts, &block)
   end
 
   class Wrapper
-    def self.open(io)
-      inst = new(io)
+    def self.open(io, **opts)
+      inst = new(io, **opts)
       yield inst
     ensure
       inst&.close
     end
 
-    def initialize(io)
+    def initialize(io, **)
       @io = io
     end
   end
