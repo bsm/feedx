@@ -28,13 +28,29 @@ module Feedx
       end
       alias eql? ==
 
+      def updated_at
+        Time.at(1515151515).utc
+      end
+
       def from_json(data, *)
         hash = ::JSON.parse(data)
         @title = hash['title'] if hash.is_a?(Hash)
       end
 
       def to_json(*)
-        ::JSON.dump(title: @title, updated_at: Time.at(1515151515).utc)
+        ::JSON.dump(title: @title, updated_at: updated_at)
+      end
+
+      def from_parquet(rec)
+        rec.each_pair do |name, value|
+          @title = value if name == 'title'
+        end
+      end
+
+      def to_parquet(schema, *)
+        schema.fields.map do |field|
+          send(field.name)
+        end
       end
     end
   end
