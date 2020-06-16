@@ -5,6 +5,7 @@ import (
 	"io"
 
 	"github.com/bsm/feedx"
+	"github.com/bsm/feedx/internal/testdata"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 )
@@ -17,24 +18,23 @@ var _ = Describe("Format", func() {
 		Expect(err).NotTo(HaveOccurred())
 		defer enc.Close()
 
-		fix := fixture
-		Expect(enc.Encode(&fix)).To(Succeed())
-		Expect(enc.Encode(&fix)).To(Succeed())
+		Expect(enc.Encode(seed())).To(Succeed())
+		Expect(enc.Encode(seed())).To(Succeed())
 		Expect(enc.Close()).To(Succeed())
 
 		dec, err := subject.NewDecoder(buf)
 		Expect(err).NotTo(HaveOccurred())
 		defer dec.Close()
 
-		v1 := new(MockMessage)
+		v1 := new(testdata.MockMessage)
 		Expect(dec.Decode(v1)).To(Succeed())
 		Expect(v1.Name).To(Equal("Joe"))
 
-		v2 := new(MockMessage)
+		v2 := new(testdata.MockMessage)
 		Expect(dec.Decode(v2)).To(Succeed())
 		Expect(v2.Name).To(Equal("Joe"))
 
-		v3 := new(MockMessage)
+		v3 := new(testdata.MockMessage)
 		Expect(dec.Decode(v3)).To(MatchError(io.EOF))
 
 		Expect(dec.Close()).To(Succeed())

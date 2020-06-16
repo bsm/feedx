@@ -1,0 +1,15 @@
+syntax = "proto3";
+
+package feedx.internal.testdata;
+option go_package = "github.com/feedx/internal/testdata";
+
+enum MockEnum {
+  UNKNOWN = 0;
+  FIRST = 3;
+}
+
+message MockMessage {
+  string name = 1;
+  MockEnum enum = 2;
+  uint32 height = 3;
+}

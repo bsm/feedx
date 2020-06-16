@@ -1,16 +1,10 @@
 module github.com/bsm/feedx
 
-require (
-	github.com/bmatcuk/doublestar v1.3.0 // indirect
-	github.com/bsm/bfs v0.10.1
-	github.com/gogo/protobuf v1.3.1
-	github.com/golang/protobuf v1.4.0
-	github.com/onsi/ginkgo v1.10.2
-	github.com/onsi/gomega v1.7.0
-	golang.org/x/net v0.0.0-20191007182048-72f939374954 // indirect
-	golang.org/x/sys v0.0.0-20191008105621-543471e840be // indirect
-	gopkg.in/check.v1 v1.0.0-20190902080502-41f04d3bba15 // indirect
-	gopkg.in/yaml.v2 v2.2.4 // indirect
-)
-
 go 1.13
+
+require (
+	github.com/bsm/bfs v0.10.4
+	github.com/gogo/protobuf v1.3.1
+	github.com/onsi/ginkgo v1.13.0
+	github.com/onsi/gomega v1.10.1
+)

@@ -7,9 +7,8 @@ import (
 	"io"
 	"path"
 
-	"github.com/golang/protobuf/proto"
-
 	pbio "github.com/gogo/protobuf/io"
+	"github.com/gogo/protobuf/proto"
 )
 
 var errNoFormat = errors.New("feedx: no format detected")
@@ -92,8 +91,6 @@ func (jsonEncoderWrapper) Close() error { return nil }
 
 // --------------------------------------------------------------------
 
-const protobufMaxMessageSize = 20 * 1024 * 1024 // 20MB
-
 // ProtobufFormat provides a Format implemention for Protobuf.
 var ProtobufFormat = protobufFormat{}
 
@@ -101,32 +98,35 @@ type protobufFormat struct{}
 
 // NewDecoder implements Format.
 func (protobufFormat) NewDecoder(r io.Reader) (FormatDecoder, error) {
-	rc := pbio.NewDelimitedReader(r, protobufMaxMessageSize)
-	return protobufDecoderWrapper{ReadCloser: rc}, nil
+	return protobufWrapper{Reader: pbio.NewDelimitedReader(r, 1<<28)}, nil
 }
 
 // NewEncoder implements Format.
 func (protobufFormat) NewEncoder(w io.Writer) (FormatEncoder, error) {
-	wc := pbio.NewDelimitedWriter(w)
-	return protobufEncoderWrapper{WriteCloser: wc}, nil
+	return protobufWrapper{Writer: pbio.NewDelimitedWriter(w)}, nil
 }
 
-type protobufDecoderWrapper struct{ pbio.ReadCloser }
+type protobufWrapper struct {
+	pbio.Reader
+	pbio.Writer
+}
 
-func (w protobufDecoderWrapper) Decode(v interface{}) error {
+func (w protobufWrapper) Decode(v interface{}) error {
 	msg, ok := v.(proto.Message)
 	if !ok {
-		return fmt.Errorf("feedx: value %v is not a proto.Message", v)
+		return fmt.Errorf("value %v (%T) is not a proto.Message", v, v)
 	}
-	return w.ReadCloser.ReadMsg(msg)
+	return w.ReadMsg(msg)
 }
 
-type protobufEncoderWrapper struct{ pbio.WriteCloser }
-
-func (w protobufEncoderWrapper) Encode(v interface{}) error {
+func (w protobufWrapper) Encode(v interface{}) error {
 	msg, ok := v.(proto.Message)
 	if !ok {
-		return fmt.Errorf("feedx: value %v is not a proto.Message", v)
+		return fmt.Errorf("value %v (%T) is not a proto.Message", v, v)
 	}
 	return w.WriteMsg(msg)
+}
+
+func (protobufWrapper) Close() error {
+	return nil
 }

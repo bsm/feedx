@@ -7,6 +7,7 @@ import (
 
 	"github.com/bsm/bfs"
 	"github.com/bsm/feedx"
+	"github.com/bsm/feedx/internal/testdata"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 )
@@ -22,16 +23,16 @@ var _ = Describe("Consumer", func() {
 
 		var err error
 		subject, err = feedx.NewConsumerForRemote(ctx, obj, nil, func(r *feedx.Reader) (interface{}, error) {
-			var msgs []MockMessage
+			var msgs []*testdata.MockMessage
 			for {
-				var msg MockMessage
+				var msg testdata.MockMessage
 				if err := r.Decode(&msg); err == io.EOF {
 					break
 				}
 				if err != nil {
 					return nil, err
 				}
-				msgs = append(msgs, msg)
+				msgs = append(msgs, &msg)
 			}
 			return msgs, nil
 		})
@@ -46,7 +47,7 @@ var _ = Describe("Consumer", func() {
 		Expect(subject.LastSync()).To(BeTemporally("~", time.Now(), time.Second))
 		Expect(subject.LastModified()).To(BeTemporally("~", time.Unix(1515151515, 0), time.Second))
 		Expect(subject.NumRead()).To(Equal(2))
-		Expect(subject.Data()).To(Equal([]MockMessage{fixture, fixture}))
+		Expect(subject.Data()).To(ConsistOf(seed(), seed()))
 		Expect(subject.Close()).To(Succeed())
 	})
 })

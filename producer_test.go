@@ -23,8 +23,7 @@ var _ = Describe("Producer", func() {
 			atomic.AddUint32(&numRuns, 1)
 
 			for i := 0; i < 10; i++ {
-				fix := fixture
-				if err := w.Encode(&fix); err != nil {
+				if err := w.Encode(seed()); err != nil {
 					return err
 				}
 			}

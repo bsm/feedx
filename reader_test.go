@@ -5,9 +5,9 @@ import (
 	"io"
 	"io/ioutil"
 
-	"github.com/bsm/feedx"
-
 	"github.com/bsm/bfs"
+	"github.com/bsm/feedx"
+	"github.com/bsm/feedx/internal/testdata"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 )
@@ -38,18 +38,18 @@ var _ = Describe("Reader", func() {
 	})
 
 	It("should decode", func() {
-		var msgs []MockMessage
+		var msgs []*testdata.MockMessage
 		for {
-			var msg MockMessage
+			var msg testdata.MockMessage
 			err := subject.Decode(&msg)
 			if err == io.EOF {
 				break
 			}
 			Expect(err).NotTo(HaveOccurred())
-			msgs = append(msgs, msg)
+			msgs = append(msgs, &msg)
 		}
 
-		Expect(msgs).To(Equal([]MockMessage{fixture, fixture, fixture}))
+		Expect(msgs).To(ConsistOf(seed(), seed(), seed()))
 		Expect(subject.NumRead()).To(Equal(3))
 	})
 })
