@@ -22,7 +22,7 @@ module Feedx
     # @yield A block over a formatted stream.
     # @yieldparam [Feedx::Format::Abstract] formatted input stream.
     def open(**opts)
-      @blob.open(**@opts, **opts) do |io|
+      @blob.open(**opts) do |io|
         @compress.reader(io, **@opts, **opts) do |cio|
           @format.decoder(cio, **@opts, **opts) do |fmt|
             yield fmt
@@ -36,7 +36,7 @@ module Feedx
     # @yield A block over a formatted stream.
     # @yieldparam [Feedx::Format::Abstract] formatted output stream.
     def create(**opts)
-      @blob.create(**@opts, **opts) do |io|
+      @blob.create(**opts) do |io|
         @compress.writer(io, **@opts, **opts) do |cio|
           @format.encoder(cio, **@opts, **opts) do |fmt|
             yield fmt

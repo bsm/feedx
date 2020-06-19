@@ -39,6 +39,9 @@ module Feedx
       def registry
         @registry ||= {
           'json'     => :JSON,
+          'jsonl'    => :JSON,
+          'ndjson'   => :JSON,
+          'parquet'  => :Parquet,
           'pb'       => :Protobuf,
           'proto'    => :Protobuf,
           'protobuf' => :Protobuf,
