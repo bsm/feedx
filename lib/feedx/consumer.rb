@@ -40,7 +40,7 @@ module Feedx
         return false if remote_rev.positive? && remote_rev <= local_rev
       end
 
-      @stream.open(**@opts) do |fmt|
+      @stream.open do |fmt|
         fmt.decode_each(@klass, **@opts, &block)
       end
       @cache.write(remote_rev) if @cache && remote_rev

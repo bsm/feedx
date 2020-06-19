@@ -44,7 +44,7 @@ module Feedx
         nil
       end if local_rev.positive?
 
-      @stream.create metadata: { META_LAST_MODIFIED => local_rev.to_s }, **@opts do |fmt|
+      @stream.create metadata: { META_LAST_MODIFIED => local_rev.to_s } do |fmt|
         iter = enum.respond_to?(:find_each) ? :find_each : :each
         enum.send(iter) {|rec| fmt.encode(rec, **@opts) }
       end
