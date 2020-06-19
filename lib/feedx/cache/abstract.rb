@@ -5,12 +5,12 @@ class Feedx::Cache::Abstract
   end
 
   # Read reads a key.
-  def read(_key, **_opts)
+  def read(_key, **)
     raise 'Not implemented'
   end
 
   # Write writes a key/value pair.
-  def write(_key, _value, **_opts)
+  def write(_key, _value, **)
     raise 'Not implemented'
   end
 

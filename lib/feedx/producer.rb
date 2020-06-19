@@ -14,18 +14,21 @@ module Feedx
     # @param [Hash] opts options
     # @option opts [Enumerable,ActiveRecord::Relation] :enum relation or enumerator to stream.
     # @option opts [Symbol,Class<Feedx::Format::Abstract>] :format custom formatter. Default: from file extension.
-    # @option opts [Hash] :format_options format encode options. Default: {}.
     # @option opts [Symbol,Class<Feedx::Compression::Abstract>] :compress enable compression. Default: from file extension.
     # @option opts [Time,Proc] :last_modified the last modified time, used to determine if a push is necessary.
     # @yield A block factory to generate the relation or enumerator.
     # @yieldreturn [Enumerable,ActiveRecord::Relation] the relation or enumerator to stream.
-    def initialize(url, **opts, &block)
-      @enum = opts[:enum] || block
+    def initialize(url, last_modified: nil, format_options: {}, enum: nil, **opts, &block)
+      @enum = enum || block
       raise ArgumentError, "#{self.class.name}.new expects an :enum option or a block factory" unless @enum
 
       @stream   = Feedx::Stream.new(url, **opts)
-      @last_mod = opts[:last_modified]
-      @fmt_opts = opts[:format_options] || {}
+      @last_mod = last_modified
+      @opts     = opts.merge(format_options)
+
+      return if format_options.empty? || (defined?(Gem::Deprecate) && Gem::Deprecate.skip)
+
+      warn "WARNING: passing format_options is deprecated; pass the options inline instead (called from #{caller(2..2).first})."
     end
 
     def perform
@@ -41,9 +44,9 @@ module Feedx
         nil
       end if local_rev.positive?
 
-      @stream.create metadata: { META_LAST_MODIFIED => local_rev.to_s } do |fmt|
+      @stream.create metadata: { META_LAST_MODIFIED => local_rev.to_s }, **@opts do |fmt|
         iter = enum.respond_to?(:find_each) ? :find_each : :each
-        enum.send(iter) {|rec| fmt.encode(rec, **@fmt_opts) }
+        enum.send(iter) {|rec| fmt.encode(rec, **@opts) }
       end
       @stream.blob.info.size
     end

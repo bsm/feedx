@@ -64,4 +64,10 @@ RSpec.describe Feedx::Producer do
     size = described_class.perform 'mock:///dir/file.json', last_modified: Time.at(1515151516), enum: enumerable
     expect(size).to eq(15900)
   end
+
+  it 'should accept downstream options' do
+    expect do
+      described_class.perform 'mock:///dir/file.jsonz', enum: enumerable, x: 1, y: 'v', z: true
+    end.not_to raise_error
+  end
 end
