@@ -16,14 +16,17 @@ module Feedx
     # @param [Class] klass the record class.
     # @param [Hash] opts options
     # @option opts [Symbol,Class<Feedx::Format::Abstract>] :format custom formatter. Default: from file extension.
-    # @option opts [Hash] :format_options format decode options. Default: {}.
     # @option opts [Symbol,Class<Feedx::Compression::Abstract>] :compress enable compression. Default: from file extension.
     # @option opts [Feedx::Cache::Value] :cache cache value to store remote last modified time and consume conditionally.
-    def initialize(url, klass, **opts)
-      @klass    = klass
-      @stream   = Feedx::Stream.new(url, **opts)
-      @fmt_opts = opts[:format_options] || {}
-      @cache    = opts[:cache]
+    def initialize(url, klass, format_options: {}, cache: nil, **opts)
+      @klass  = klass
+      @stream = Feedx::Stream.new(url, **opts)
+      @cache  = cache
+      @opts   = opts.merge(format_options)
+
+      return if format_options.empty? || (defined?(Gem::Deprecate) && Gem::Deprecate.skip)
+
+      warn "WARNING: passing format_options is deprecated; pass the options inline instead (called from #{caller(2..2).first})."
     end
 
     # @return [Boolean] returns true if performed.
@@ -37,8 +40,8 @@ module Feedx
         return false if remote_rev.positive? && remote_rev <= local_rev
       end
 
-      @stream.open do |fmt|
-        fmt.decode_each(@klass, **@fmt_opts, &block)
+      @stream.open(**@opts) do |fmt|
+        fmt.decode_each(@klass, **@opts, &block)
       end
       @cache.write(remote_rev) if @cache && remote_rev
 

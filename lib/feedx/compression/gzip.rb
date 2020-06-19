@@ -1,12 +1,12 @@
 require 'zlib'
 
 class Feedx::Compression::Gzip < Feedx::Compression::Abstract
-  def reader(io, &block)
+  def reader(io, **, &block)
     force_binmode(io)
     Zlib::GzipReader.wrap(io, &block)
   end
 
-  def writer(io, &block)
+  def writer(io, **, &block)
     force_binmode(io)
     Zlib::GzipWriter.wrap(io, &block)
   end
