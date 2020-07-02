@@ -10,12 +10,13 @@ module Feedx
     # If a block is given, streams are automatically closed after the block is yielded.
     def self.open(url, **opts)
       stream = new(url, **opts)
+      return stream unless block_given?
+
       begin
         yield stream
       ensure
         stream.close
-      end if block_given?
-      stream
+      end
     end
 
     # @param [String] url the blob URL.

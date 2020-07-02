@@ -1,14 +1,14 @@
 PATH
   remote: .
   specs:
-    feedx (0.12.1)
+    feedx (0.12.2)
       bfs (>= 0.5.0)
 
 GEM
   remote: https://rubygems.org/
   specs:
     ast (2.4.1)
-    bfs (0.7.1)
+    bfs (0.7.2)
     diff-lcs (1.4.4)
     extpp (0.0.8)
     gio2 (3.4.3)

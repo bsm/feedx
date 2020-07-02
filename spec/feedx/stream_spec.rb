@@ -27,9 +27,11 @@ RSpec.describe Feedx::Stream do
       end
     end
 
-    described_class.open('mock:///dir/file.txt', format: format.new) do |stream|
+    result = described_class.open('mock:///dir/file.txt', format: format.new) do |stream|
       stream.create {|s| s.encode Feedx::TestCase::Model.new('X') }
+      21
     end
+    expect(result).to eq(21)
 
     expect(bucket.read('dir/file.txt')).to eq(
       %({"title":"X","updated_at":"2018-01-05 11:25:15 UTC"}\n),
