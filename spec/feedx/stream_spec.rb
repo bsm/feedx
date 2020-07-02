@@ -2,10 +2,13 @@ require 'spec_helper'
 
 RSpec.describe Feedx::Stream do
   let(:bucket) { BFS::Bucket::InMem.new }
-  before  { allow(BFS).to receive(:resolve).and_return(bucket) }
+  let(:compressed) { described_class.new('mock:///dir/file.json.gz') }
 
   subject { described_class.new('mock:///dir/file.json') }
-  let(:compressed) { described_class.new('mock:///dir/file.json.gz') }
+
+  before  { allow(BFS).to receive(:resolve).and_return(bucket) }
+  after { subject.close }
+  after { compressed.close }
 
   it 'should reject invalid inputs' do
     expect do
@@ -24,8 +27,9 @@ RSpec.describe Feedx::Stream do
       end
     end
 
-    stream = described_class.new('mock:///dir/file.txt', format: format.new)
-    stream.create {|s| s.encode Feedx::TestCase::Model.new('X') }
+    described_class.open('mock:///dir/file.txt', format: format.new) do |stream|
+      stream.create {|s| s.encode Feedx::TestCase::Model.new('X') }
+    end
 
     expect(bucket.read('dir/file.txt')).to eq(
       %({"title":"X","updated_at":"2018-01-05 11:25:15 UTC"}\n),

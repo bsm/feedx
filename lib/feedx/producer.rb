@@ -22,9 +22,9 @@ module Feedx
       @enum = enum || block
       raise ArgumentError, "#{self.class.name}.new expects an :enum option or a block factory" unless @enum
 
-      @stream   = Feedx::Stream.new(url, **opts)
+      @url  = url
+      @opts = opts.merge(format_options)
       @last_mod = last_modified
-      @opts     = opts.merge(format_options)
 
       return if format_options.empty? || (defined?(Gem::Deprecate) && Gem::Deprecate.skip)
 
@@ -32,23 +32,26 @@ module Feedx
     end
 
     def perform
-      enum      = @enum.is_a?(Proc) ? @enum.call : @enum
-      last_mod  = @last_mod.is_a?(Proc) ? @last_mod.call(enum) : @last_mod
+      stream = Feedx::Stream.new(@url, **@opts)
+      enum = @enum.is_a?(Proc) ? @enum.call : @enum
+      last_mod = @last_mod.is_a?(Proc) ? @last_mod.call(enum) : @last_mod
       local_rev = last_mod.is_a?(Integer) ? last_mod : (last_mod.to_f * 1000).floor
 
       begin
-        metadata   = @stream.blob.info.metadata
+        metadata   = stream.blob.info.metadata
         remote_rev = (metadata[META_LAST_MODIFIED] || metadata[META_LAST_MODIFIED_DC]).to_i
         return -1 unless local_rev > remote_rev
       rescue BFS::FileNotFound
         nil
       end if local_rev.positive?
 
-      @stream.create metadata: { META_LAST_MODIFIED => local_rev.to_s } do |fmt|
+      stream.create metadata: { META_LAST_MODIFIED => local_rev.to_s } do |fmt|
         iter = enum.respond_to?(:find_each) ? :find_each : :each
         enum.send(iter) {|rec| fmt.encode(rec, **@opts) }
       end
-      @stream.blob.info.size
+      stream.blob.info.size
+    ensure
+      stream&.close
     end
   end
 end
