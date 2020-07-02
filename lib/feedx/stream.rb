@@ -6,6 +6,18 @@ module Feedx
   class Stream
     attr_reader :blob
 
+    # Behaves like new, but accepts an optional block.
+    # If a block is given, streams are automatically closed after the block is yielded.
+    def self.open(url, **opts)
+      stream = new(url, **opts)
+      begin
+        yield stream
+      ensure
+        stream.close
+      end if block_given?
+      stream
+    end
+
     # @param [String] url the blob URL.
     # @param [Hash] opts options
     # @option opts [Symbol,Class<Feedx::Format::Abstract>] :format custom formatter. Default: from file extension.
@@ -15,6 +27,8 @@ module Feedx
       @format   = detect_format(format)
       @compress = detect_compress(compress)
       @opts     = opts
+
+      BFS.defer(self, :close)
     end
 
     # Opens the remote for reading.
@@ -43,6 +57,11 @@ module Feedx
           end
         end
       end
+    end
+
+    # Closes the underlying connection.
+    def close
+      @blob.close
     end
 
     private
