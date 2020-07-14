@@ -1,9 +1,11 @@
 package parquet
 
 import (
+	"encoding/binary"
 	"fmt"
 	"io"
 	"reflect"
+	"time"
 
 	kpq "github.com/kostya-sh/parquet-go/parquet"
 )
@@ -70,8 +72,9 @@ func (w *decoder) Decode(v interface{}) error {
 
 		// set field if exists
 		if fi, ok := fidx[r.Name()]; ok {
-			if err := setValue(elem.Field(fi), val); err != nil {
-				return err
+			fv := elem.Field(fi)
+			if ok := setValue(fv, val); !ok {
+				return fmt.Errorf("cannot assign value of type %T to %s", val, fv.Type())
 			}
 		}
 	}
@@ -90,59 +93,78 @@ func (w *decoder) Close() (err error) {
 
 // --------------------------------------------------------------------
 
-func setValue(rv reflect.Value, v interface{}) error {
+func setValue(rv reflect.Value, v interface{}) bool {
+	if rv.Kind() == reflect.Ptr {
+		if rv.IsNil() {
+			if ev := reflect.New(rv.Type().Elem()); setValue(ev, v) {
+				rv.Set(ev)
+				return true
+			}
+			return false
+		}
+		return setValue(rv.Elem(), v)
+	}
+
 	switch vv := v.(type) {
 	case bool:
 		switch rv.Kind() {
 		case reflect.Bool:
 			rv.SetBool(vv)
-			return nil
+			return true
 		}
 	case []byte:
 		switch rv.Kind() {
 		case reflect.String:
 			rv.SetString(string(vv))
-			return nil
+			return true
 		case reflect.Slice:
 			if rv.Type() == byteSliceType {
 				rv.SetBytes(vv)
-				return nil
+				return true
 			}
 		}
 	case int, int8, int16, int32, int64:
 		switch rv.Kind() {
 		case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
 			rv.SetInt(reflect.ValueOf(v).Int())
-			return nil
+			return true
 		case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
 			rv.SetUint(uint64(reflect.ValueOf(v).Int()))
-			return nil
+			return true
 		}
 	case uint, uint8, uint16, uint32, uint64:
 		switch rv.Kind() {
 		case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
 			rv.SetInt(int64(reflect.ValueOf(v).Uint()))
-			return nil
+			return true
 		case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
 			rv.SetUint(reflect.ValueOf(v).Uint())
-			return nil
+			return true
 		}
 	case float32, float64:
 		switch rv.Kind() {
 		case reflect.Float32, reflect.Float64:
 			rv.SetFloat(reflect.ValueOf(v).Float())
-			return nil
+			return true
 		}
 	case kpq.Int96:
-		if rv.Type() == int96Type {
+		if rt := rv.Type(); rt == timeType {
+			ns := int64(binary.LittleEndian.Uint64(vv[:8]))
+			jd := int64(binary.LittleEndian.Uint32(vv[8:]))
+			ts := time.Unix((jd-2440588)*86400, ns)
+			rv.Set(reflect.ValueOf(ts))
+			return true
+		} else if rt == int96Type {
 			rv.Set(reflect.ValueOf(v))
-			return nil
+			return true
 		}
 	}
-	return fmt.Errorf("cannot assign value of type %T to %s", v, rv.Type())
+
+	return false
 }
 
 var (
 	byteSliceType = reflect.TypeOf(([]byte)(nil))
 	int96Type     = reflect.TypeOf(kpq.Int96{})
+	timeType      = reflect.TypeOf(time.Time{})
 )
