@@ -1,10 +1,10 @@
-default: vet test
+default: test
 
-test:
-	go test ./...
+.common.makefile:
+	curl -fsSL -o $@ https://gitlab.com/bsm/misc/raw/master/make/go/common.makefile
 
-vet:
-	go vet ./...
+include .common.makefile
+
 
 proto: internal/testdata/testdata.pb.go
 
