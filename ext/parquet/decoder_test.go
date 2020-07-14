@@ -5,10 +5,10 @@ import (
 	"io"
 	"io/ioutil"
 	"os"
+	"time"
 
 	"github.com/bsm/feedx"
 	"github.com/bsm/feedx/ext/parquet"
-	kpq "github.com/kostya-sh/parquet-go/parquet"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 )
@@ -16,6 +16,8 @@ import (
 var _ = Describe("Decoder", func() {
 	var subject feedx.FormatDecoder
 	var fixture *os.File
+
+	f32ptr := func(f float32) *float32 { return &f }
 
 	BeforeEach(func() {
 		var err error
@@ -38,8 +40,9 @@ var _ = Describe("Decoder", func() {
 		Expect(v1).To(Equal(&mockStruct{
 			ID:         4,
 			Bool:       true,
+			Float:      f32ptr(0),
 			DateString: "03/01/09", ByteString: []byte("0"),
-			Timestamp: kpq.Int96{0, 0, 0, 0, 0, 0, 0, 0, 108, 117, 37, 0},
+			Timestamp: time.Date(2009, 3, 1, 0, 0, 0, 0, time.Local),
 		}))
 
 		v2 := new(mockStruct)
@@ -47,9 +50,9 @@ var _ = Describe("Decoder", func() {
 		Expect(v2).To(Equal(&mockStruct{
 			ID:      5,
 			TinyInt: 1, SmallUint: 1, StdInt: 1, BigInt: 10,
-			Float: 1.1, Double: 10.1,
+			Float: f32ptr(1.1), Double: 10.1,
 			DateString: "03/01/09", ByteString: []byte("1"),
-			Timestamp: kpq.Int96{0, 88, 71, 248, 13, 0, 0, 0, 108, 117, 37, 0},
+			Timestamp: time.Date(2009, 3, 1, 0, 1, 0, 0, time.Local),
 		}))
 
 		Expect(subject.Decode(new(mockStruct))).To(Succeed()) // v3
@@ -62,9 +65,9 @@ var _ = Describe("Decoder", func() {
 			ID:      3,
 			Bool:    false,
 			TinyInt: 1, SmallUint: 1, StdInt: 1, BigInt: 10,
-			Float: 1.1, Double: 10.1,
+			Float: f32ptr(1.1), Double: 10.1,
 			DateString: "02/01/09", ByteString: []byte("1"),
-			Timestamp: kpq.Int96{0, 88, 71, 248, 13, 0, 0, 0, 80, 117, 37, 0},
+			Timestamp: time.Date(2009, 2, 1, 0, 1, 0, 0, time.Local),
 		}))
 
 		Expect(subject.Decode(new(mockStruct))).To(Succeed()) // v7
