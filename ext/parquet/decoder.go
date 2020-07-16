@@ -7,7 +7,7 @@ import (
 	"reflect"
 	"time"
 
-	kpq "github.com/kostya-sh/parquet-go/parquet"
+	kpq "github.com/bsm/parquet-go/parquet"
 )
 
 type decoder struct {
