@@ -1,7 +1,11 @@
 github.com/bmatcuk/doublestar v1.2.2 h1:oC24CykoSAB8zd7XgruHo33E0cHJf/WhQA/7BeXj+x0=
 github.com/bmatcuk/doublestar v1.2.2/go.mod h1:wiQtGV+rzVYxB7WIlirSN++5HPtPlXEo9MEoZQC/PmE=
+github.com/bmatcuk/doublestar v1.3.1 h1:rT8rxDPsavp9G+4ZULzqhhUSaI/OPsTZNG88Z3i0xvY=
+github.com/bmatcuk/doublestar v1.3.1/go.mod h1:wiQtGV+rzVYxB7WIlirSN++5HPtPlXEo9MEoZQC/PmE=
 github.com/bsm/bfs v0.10.4 h1:59I1FBEcIku/1MfPyIEeBfKm+ICaJ4lVEcago/YeCLg=
 github.com/bsm/bfs v0.10.4/go.mod h1:N3md8kQvlteRDcfc8tqw759yW98dhj+6seWEVcg4CmM=
+github.com/bsm/bfs v0.10.5-0.20200804104424-50dd9ff4f4d4 h1:dH2t2uQB/HRkWNSWRaqeroIA49wnzTua6sqW/6RoX+o=
+github.com/bsm/bfs v0.10.5-0.20200804104424-50dd9ff4f4d4/go.mod h1:k5LbfbysmpCRZM5JHj9Zlw9ZJBG2ORg8dO/BVdW09Iw=
 github.com/bsm/parquet-go v0.0.0-20180827163605-06b7130dc45c/go.mod h1:DAZNnzI1qWbx+5QZ/3QNYzrIDFwafJ0IWkBIidyoXNQ=
 github.com/bsm/parquet-go v0.0.0-20200716102203-e9f10c64f65d h1:IGgX5+156tPtguV8YCR3fzM6BdJ/T8pE12aeGGKyZ90=
 github.com/bsm/parquet-go v0.0.0-20200716102203-e9f10c64f65d/go.mod h1:7EU1rAae6Y67NlxAbr+Mbxxxc5AFGcxZCSW/vbybDLs=
@@ -36,6 +40,8 @@ github.com/onsi/ginkgo v1.8.0/go.mod h1:lLunBs/Ym6LB5Z9jYTR76FiuTmxDTDusOGeTQH+W
 github.com/onsi/ginkgo v1.12.1/go.mod h1:zj2OWP4+oCPe1qIXoGWkgMRwljMUYCdkwsT2108oapk=
 github.com/onsi/ginkgo v1.13.0 h1:M76yO2HkZASFjXL0HSoZJ1AYEmQxNJmY41Jx1zNUq1Y=
 github.com/onsi/ginkgo v1.13.0/go.mod h1:+REjRxOmWfHCjfv9TTWB1jD1Frx4XydAD3zm1lskyM0=
+github.com/onsi/ginkgo v1.14.0 h1:2mOpI4JVVPBN+WQRa0WKH2eXR+Ey+uK4n7Zj0aYpIQA=
+github.com/onsi/ginkgo v1.14.0/go.mod h1:iSB4RoI2tjJc9BBv4NKIKWKya62Rps+oPG/Lv9klQyY=
 github.com/onsi/gomega v1.5.0/go.mod h1:ex+gbHU/CVuBBDIJjb2X0qEXbFg53c61hWP/1CpauHY=
 github.com/onsi/gomega v1.7.1/go.mod h1:XdKZgCCFLUoM/7CFJVPcG8C1xQ1AJ0vpAezJrB7JYyY=
 github.com/onsi/gomega v1.10.1 h1:o0+MgICZLuZ7xjH7Vx6zS/zcu93/BEp1VwkIW1mEXCE=

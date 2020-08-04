@@ -18,7 +18,7 @@ Gem::Specification.new do |s|
   s.add_development_dependency 'bundler'
   s.add_development_dependency 'pbio'
   s.add_development_dependency 'rake'
-  s.add_development_dependency 'red-parquet'
+  s.add_development_dependency 'red-parquet', '>= 1.0.0'
   s.add_development_dependency 'rspec'
   s.add_development_dependency 'rubocop'
   s.add_development_dependency 'rubocop-performance'
