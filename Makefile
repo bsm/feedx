@@ -5,8 +5,8 @@ default: test
 
 include .common.makefile
 
-
 proto: internal/testdata/testdata.pb.go
 
 %.pb.go: %.proto
-	protoc -I=. --gogo_out=paths=source_relative:. $<
+	# may need to `go install google.golang.org/protobuf/cmd/protoc-gen-go`
+	protoc -I=. --go_out=paths=source_relative:. $<
