@@ -101,12 +101,12 @@ type protobufFormat struct{}
 
 // NewDecoder implements Format.
 func (protobufFormat) NewDecoder(r io.Reader) (FormatDecoder, error) {
-	return protobufWrapper{dec: pbio.NewDecoder(r)}, nil
+	return &protobufAdapter{reader: r}, nil
 }
 
 // NewEncoder implements Format.
 func (protobufFormat) NewEncoder(w io.Writer) (FormatEncoder, error) {
-	return protobufWrapper{enc: pbio.NewEncoder(w)}, nil
+	return &protobufAdapter{writer: w}, nil
 }
 
 // protobufAdapter this is an adapter to switch between
@@ -147,27 +147,28 @@ func (a *protobufAdapter) ensureAdapterFor(v interface{}) {
 		return
 	}
 
-	if _, ok := v.(gproto.Message); ok {
+	if _, ok := v.(proto.Message); ok {
 		if a.writer != nil {
-			a.adapter = gogoProtobufWrapper{
-				Writer: gio.NewDelimitedWriter(a.writer),
+			a.adapter = protobufWrapper{
+				enc: pbio.NewEncoder(a.writer),
 			}
 			return
 		}
-		a.adapter = gogoProtobufWrapper{
-			Reader: gio.NewDelimitedReader(a.reader, 1<<28),
+		a.adapter = protobufWrapper{
+			dec: pbio.NewDecoder(a.reader),
 		}
 		return
 	}
 
+	// BACKCOMPAT: gogo/protobuf/proto.Message handling:
 	if a.writer != nil {
-		a.adapter = protobufWrapper{
-			enc: pbio.NewEncoder(a.writer),
+		a.adapter = gogoProtobufWrapper{
+			Writer: gio.NewDelimitedWriter(a.writer),
 		}
 		return
 	}
-	a.adapter = protobufWrapper{
-		dec: pbio.NewDecoder(a.reader),
+	a.adapter = gogoProtobufWrapper{
+		Reader: gio.NewDelimitedReader(a.reader, 1<<28),
 	}
 }
 
