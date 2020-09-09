@@ -9,6 +9,9 @@ import (
 
 	"github.com/bsm/pbio"
 	"google.golang.org/protobuf/proto"
+
+	gio "github.com/gogo/protobuf/io"
+	gproto "github.com/gogo/protobuf/proto"
 )
 
 var errNoFormat = errors.New("feedx: no format detected")
@@ -106,6 +109,68 @@ func (protobufFormat) NewEncoder(w io.Writer) (FormatEncoder, error) {
 	return protobufWrapper{enc: pbio.NewEncoder(w)}, nil
 }
 
+// protobufAdapter this is an adapter to switch between
+// protobufWrapper (official go protobuf impl) and
+// gogoProtobufWrapper (backcompat, deprecated - github.com/gogo/protobuf).
+//
+// Wrapper is instantiated on the first Encode or Decode call.
+// Either .writer or .reader must be set.
+type protobufAdapter struct {
+	writer io.Writer
+	reader io.Reader
+
+	adapter interface {
+		FormatDecoder
+		FormatEncoder
+	}
+}
+
+func (a *protobufAdapter) Decode(v interface{}) error {
+	a.ensureAdapterFor(v)
+	return a.adapter.Decode(v)
+}
+
+func (a *protobufAdapter) Encode(v interface{}) error {
+	a.ensureAdapterFor(v)
+	return a.adapter.Encode(v)
+}
+
+func (a *protobufAdapter) Close() error {
+	if a.adapter != nil {
+		return a.adapter.Close()
+	}
+	return nil
+}
+
+func (a *protobufAdapter) ensureAdapterFor(v interface{}) {
+	if a.adapter != nil {
+		return
+	}
+
+	if _, ok := v.(gproto.Message); ok {
+		if a.writer != nil {
+			a.adapter = gogoProtobufWrapper{
+				Writer: gio.NewDelimitedWriter(a.writer),
+			}
+			return
+		}
+		a.adapter = gogoProtobufWrapper{
+			Reader: gio.NewDelimitedReader(a.reader, 1<<28),
+		}
+		return
+	}
+
+	if a.writer != nil {
+		a.adapter = protobufWrapper{
+			enc: pbio.NewEncoder(a.writer),
+		}
+		return
+	}
+	a.adapter = protobufWrapper{
+		dec: pbio.NewDecoder(a.reader),
+	}
+}
+
 type protobufWrapper struct {
 	dec *pbio.Decoder
 	enc *pbio.Encoder
@@ -128,5 +193,31 @@ func (w protobufWrapper) Encode(v interface{}) error {
 }
 
 func (protobufWrapper) Close() error {
+	return nil
+}
+
+// DEPRECATED: prefer official go protobuf impl
+type gogoProtobufWrapper struct {
+	gio.Reader
+	gio.Writer
+}
+
+func (w gogoProtobufWrapper) Decode(v interface{}) error {
+	msg, ok := v.(gproto.Message)
+	if !ok {
+		return fmt.Errorf("value %v (%T) is not a gogo/proto.Message", v, v)
+	}
+	return w.Reader.ReadMsg(msg)
+}
+
+func (w gogoProtobufWrapper) Encode(v interface{}) error {
+	msg, ok := v.(gproto.Message)
+	if !ok {
+		return fmt.Errorf("value %v (%T) is not a gogo/proto.Message", v, v)
+	}
+	return w.WriteMsg(msg)
+}
+
+func (gogoProtobufWrapper) Close() error {
 	return nil
 }
