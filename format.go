@@ -7,8 +7,8 @@ import (
 	"io"
 	"path"
 
-	pbio "github.com/gogo/protobuf/io"
-	"github.com/gogo/protobuf/proto"
+	"github.com/bsm/pbio"
+	"google.golang.org/protobuf/proto"
 )
 
 var errNoFormat = errors.New("feedx: no format detected")
@@ -98,17 +98,17 @@ type protobufFormat struct{}
 
 // NewDecoder implements Format.
 func (protobufFormat) NewDecoder(r io.Reader) (FormatDecoder, error) {
-	return protobufWrapper{Reader: pbio.NewDelimitedReader(r, 1<<28)}, nil
+	return protobufWrapper{dec: pbio.NewDecoder(r)}, nil
 }
 
 // NewEncoder implements Format.
 func (protobufFormat) NewEncoder(w io.Writer) (FormatEncoder, error) {
-	return protobufWrapper{Writer: pbio.NewDelimitedWriter(w)}, nil
+	return protobufWrapper{enc: pbio.NewEncoder(w)}, nil
 }
 
 type protobufWrapper struct {
-	pbio.Reader
-	pbio.Writer
+	dec *pbio.Decoder
+	enc *pbio.Encoder
 }
 
 func (w protobufWrapper) Decode(v interface{}) error {
@@ -116,7 +116,7 @@ func (w protobufWrapper) Decode(v interface{}) error {
 	if !ok {
 		return fmt.Errorf("value %v (%T) is not a proto.Message", v, v)
 	}
-	return w.ReadMsg(msg)
+	return w.dec.Decode(msg)
 }
 
 func (w protobufWrapper) Encode(v interface{}) error {
@@ -124,7 +124,7 @@ func (w protobufWrapper) Encode(v interface{}) error {
 	if !ok {
 		return fmt.Errorf("value %v (%T) is not a proto.Message", v, v)
 	}
-	return w.WriteMsg(msg)
+	return w.enc.Encode(msg)
 }
 
 func (protobufWrapper) Close() error {
