@@ -18,7 +18,7 @@ matrix:
         - sudo apt install -y libarrow-dev libarrow-glib-dev libarrow-dataset-dev libplasma-dev libplasma-glib-dev libgandiva-dev libgandiva-glib-dev libparquet-dev libparquet-glib-dev
     - language: go
       go:
-        - 1.14.x
+        - 1.15.x
     - language: go
       go:
-        - 1.13.x
+        - 1.14.x
