@@ -101,124 +101,64 @@ type protobufFormat struct{}
 
 // NewDecoder implements Format.
 func (protobufFormat) NewDecoder(r io.Reader) (FormatDecoder, error) {
-	return &protobufAdapter{reader: r}, nil
+	return &protobufWrapper{r: r}, nil
 }
 
 // NewEncoder implements Format.
 func (protobufFormat) NewEncoder(w io.Writer) (FormatEncoder, error) {
-	return &protobufAdapter{writer: w}, nil
-}
-
-// protobufAdapter this is an adapter to switch between
-// protobufWrapper (official go protobuf impl) and
-// gogoProtobufWrapper (backcompat, deprecated - github.com/gogo/protobuf).
-//
-// Wrapper is instantiated on the first Encode or Decode call.
-// Either .writer or .reader must be set.
-type protobufAdapter struct {
-	writer io.Writer
-	reader io.Reader
-
-	adapter interface {
-		FormatDecoder
-		FormatEncoder
-	}
-}
-
-func (a *protobufAdapter) Decode(v interface{}) error {
-	a.ensureAdapterFor(v)
-	return a.adapter.Decode(v)
-}
-
-func (a *protobufAdapter) Encode(v interface{}) error {
-	a.ensureAdapterFor(v)
-	return a.adapter.Encode(v)
-}
-
-func (a *protobufAdapter) Close() error {
-	if a.adapter != nil {
-		return a.adapter.Close()
-	}
-	return nil
-}
-
-func (a *protobufAdapter) ensureAdapterFor(v interface{}) {
-	if a.adapter != nil {
-		return
-	}
-
-	if _, ok := v.(proto.Message); ok {
-		if a.writer != nil {
-			a.adapter = protobufWrapper{
-				enc: pbio.NewEncoder(a.writer),
-			}
-			return
-		}
-		a.adapter = protobufWrapper{
-			dec: pbio.NewDecoder(a.reader),
-		}
-		return
-	}
-
-	// BACKCOMPAT: gogo/protobuf/proto.Message handling:
-	if a.writer != nil {
-		a.adapter = gogoProtobufWrapper{
-			Writer: gio.NewDelimitedWriter(a.writer),
-		}
-		return
-	}
-	a.adapter = gogoProtobufWrapper{
-		Reader: gio.NewDelimitedReader(a.reader, 1<<28),
-	}
+	return &protobufWrapper{w: w}, nil
 }
 
 type protobufWrapper struct {
+	r   io.Reader
 	dec *pbio.Decoder
+	pbr gio.Reader
+
+	w   io.Writer
 	enc *pbio.Encoder
+	pbw gio.Writer
 }
 
 func (w protobufWrapper) Decode(v interface{}) error {
-	msg, ok := v.(proto.Message)
-	if !ok {
+	switch msg := v.(type) {
+	case proto.Message:
+		if w.dec == nil {
+			w.dec = pbio.NewDecoder(w.r)
+		}
+		err := w.dec.Decode(msg)
+		fmt.Println("dec.Decode", msg, err)
+		return err
+
+	case gproto.Message:
+		if w.pbr == nil {
+			w.pbr = gio.NewDelimitedReader(w.r, 1<<28)
+		}
+		return w.pbr.ReadMsg(msg)
+
+	default:
 		return fmt.Errorf("value %v (%T) is not a proto.Message", v, v)
 	}
-	return w.dec.Decode(msg)
 }
 
 func (w protobufWrapper) Encode(v interface{}) error {
-	msg, ok := v.(proto.Message)
-	if !ok {
+	switch msg := v.(type) {
+	case proto.Message:
+		if w.enc == nil {
+			w.enc = pbio.NewEncoder(w.w)
+		}
+		return w.enc.Encode(msg)
+
+	case gproto.Message:
+		if w.pbw == nil {
+			w.pbw = gio.NewDelimitedWriter(w.w)
+		}
+		return w.pbw.WriteMsg(msg)
+
+	default:
 		return fmt.Errorf("value %v (%T) is not a proto.Message", v, v)
 	}
-	return w.enc.Encode(msg)
 }
 
 func (protobufWrapper) Close() error {
-	return nil
-}
-
-// DEPRECATED: prefer official go protobuf impl
-type gogoProtobufWrapper struct {
-	gio.Reader
-	gio.Writer
-}
-
-func (w gogoProtobufWrapper) Decode(v interface{}) error {
-	msg, ok := v.(gproto.Message)
-	if !ok {
-		return fmt.Errorf("value %v (%T) is not a gogo/proto.Message", v, v)
-	}
-	return w.Reader.ReadMsg(msg)
-}
-
-func (w gogoProtobufWrapper) Encode(v interface{}) error {
-	msg, ok := v.(gproto.Message)
-	if !ok {
-		return fmt.Errorf("value %v (%T) is not a gogo/proto.Message", v, v)
-	}
-	return w.WriteMsg(msg)
-}
-
-func (gogoProtobufWrapper) Close() error {
 	return nil
 }
