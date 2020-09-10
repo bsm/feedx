@@ -126,7 +126,6 @@ func (w protobufWrapper) Decode(v interface{}) error {
 			w.dec = pbio.NewDecoder(w.r)
 		}
 		err := w.dec.Decode(msg)
-		fmt.Println("dec.Decode", msg, err)
 		return err
 
 	case gproto.Message:
