@@ -42,7 +42,7 @@ var _ = Describe("Decoder", func() {
 			Bool:       true,
 			Float:      f32ptr(0),
 			DateString: "03/01/09", ByteString: []byte("0"),
-			Timestamp: time.Date(2009, 3, 1, 0, 0, 0, 0, time.Local),
+			Timestamp: time.Unix(1235865600, 0),
 		}))
 
 		v2 := new(mockStruct)
@@ -52,7 +52,7 @@ var _ = Describe("Decoder", func() {
 			TinyInt: 1, SmallUint: 1, StdInt: 1, BigInt: 10,
 			Float: f32ptr(1.1), Double: 10.1,
 			DateString: "03/01/09", ByteString: []byte("1"),
-			Timestamp: time.Date(2009, 3, 1, 0, 1, 0, 0, time.Local),
+			Timestamp: time.Unix(1235865660, 0),
 		}))
 
 		Expect(subject.Decode(new(mockStruct))).To(Succeed()) // v3
@@ -67,7 +67,7 @@ var _ = Describe("Decoder", func() {
 			TinyInt: 1, SmallUint: 1, StdInt: 1, BigInt: 10,
 			Float: f32ptr(1.1), Double: 10.1,
 			DateString: "02/01/09", ByteString: []byte("1"),
-			Timestamp: time.Date(2009, 2, 1, 0, 1, 0, 0, time.Local),
+			Timestamp: time.Unix(1233446460, 0),
 		}))
 
 		Expect(subject.Decode(new(mockStruct))).To(Succeed()) // v7
