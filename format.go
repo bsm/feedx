@@ -119,14 +119,13 @@ type protobufWrapper struct {
 	pbw gio.Writer
 }
 
-func (w protobufWrapper) Decode(v interface{}) error {
+func (w *protobufWrapper) Decode(v interface{}) error {
 	switch msg := v.(type) {
 	case proto.Message:
 		if w.dec == nil {
 			w.dec = pbio.NewDecoder(w.r)
 		}
-		err := w.dec.Decode(msg)
-		return err
+		return w.dec.Decode(msg)
 
 	case gproto.Message:
 		if w.pbr == nil {
@@ -139,7 +138,7 @@ func (w protobufWrapper) Decode(v interface{}) error {
 	}
 }
 
-func (w protobufWrapper) Encode(v interface{}) error {
+func (w *protobufWrapper) Encode(v interface{}) error {
 	switch msg := v.(type) {
 	case proto.Message:
 		if w.enc == nil {
@@ -158,6 +157,6 @@ func (w protobufWrapper) Encode(v interface{}) error {
 	}
 }
 
-func (protobufWrapper) Close() error {
+func (*protobufWrapper) Close() error {
 	return nil
 }
