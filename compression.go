@@ -1,6 +1,7 @@
 package feedx
 
 import (
+	"compress/flate"
 	"compress/gzip"
 	"io"
 	"path"
@@ -20,6 +21,8 @@ func DetectCompression(name string) Compression {
 		ext := path.Ext(path.Base(name))
 		if ext != "" && ext[0] == '.' && ext[len(ext)-1] == 'z' {
 			return GZipCompression
+		} else if ext == ".flate" {
+			return FlateCompression
 		}
 	}
 	return NoCompression
@@ -60,4 +63,19 @@ func (gzipCompression) NewReader(r io.Reader) (io.ReadCloser, error) {
 
 func (gzipCompression) NewWriter(w io.Writer) (io.WriteCloser, error) {
 	return gzip.NewWriter(w), nil
+}
+
+// --------------------------------------------------------------------
+
+// FlateCompression supports flate compression format.
+var FlateCompression = flateCompression{}
+
+type flateCompression struct{}
+
+func (flateCompression) NewReader(r io.Reader) (io.ReadCloser, error) {
+	return flate.NewReader(r), nil
+}
+
+func (flateCompression) NewWriter(w io.Writer) (io.WriteCloser, error) {
+	return flate.NewWriter(w, flate.BestSpeed)
 }
