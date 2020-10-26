@@ -43,10 +43,12 @@ var _ = Describe("Format", func() {
 	It("should detect the format", func() {
 		Expect(feedx.DetectFormat("/path/to/file.json")).To(Equal(feedx.JSONFormat))
 		Expect(feedx.DetectFormat("/path/to/file.json.gz")).To(Equal(feedx.JSONFormat))
+		Expect(feedx.DetectFormat("/path/to/file.json.flate")).To(Equal(feedx.JSONFormat))
 		Expect(feedx.DetectFormat("/path/to/file.jsonz")).To(Equal(feedx.JSONFormat))
 
 		Expect(feedx.DetectFormat("/path/to/file.pb")).To(Equal(feedx.ProtobufFormat))
 		Expect(feedx.DetectFormat("/path/to/file.pb.gz")).To(Equal(feedx.ProtobufFormat))
+		Expect(feedx.DetectFormat("/path/to/file.pb.flate")).To(Equal(feedx.ProtobufFormat))
 		Expect(feedx.DetectFormat("/path/to/file.pbz")).To(Equal(feedx.ProtobufFormat))
 
 		Expect(feedx.DetectFormat("")).To(BeNil())

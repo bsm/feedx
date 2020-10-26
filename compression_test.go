@@ -41,6 +41,9 @@ var _ = Describe("Compression", func() {
 		Expect(feedx.DetectCompression("/path/to/file.pb.gz")).To(Equal(feedx.GZipCompression))
 		Expect(feedx.DetectCompression("/path/to/file.pbz")).To(Equal(feedx.GZipCompression))
 
+		Expect(feedx.DetectCompression("/path/to/file.flate")).To(Equal(feedx.FlateCompression))
+		Expect(feedx.DetectCompression("/path/to/file.whatever.flate")).To(Equal(feedx.FlateCompression))
+
 		Expect(feedx.DetectCompression("")).To(Equal(feedx.NoCompression))
 		Expect(feedx.DetectCompression("/path/to/file")).To(Equal(feedx.NoCompression))
 		Expect(feedx.DetectCompression("/path/to/file.txt")).To(Equal(feedx.NoCompression))
@@ -57,6 +60,15 @@ var _ = Describe("Compression", func() {
 
 	Describe("GZipCompression", func() {
 		var subject = feedx.GZipCompression
+		var _ feedx.Compression = subject
+
+		It("should write/read", func() {
+			runSharedTest(subject)
+		})
+	})
+
+	Describe("FlateCompression", func() {
+		var subject = feedx.FlateCompression
 		var _ feedx.Compression = subject
 
 		It("should write/read", func() {
