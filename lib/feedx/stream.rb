@@ -36,12 +36,10 @@ module Feedx
     # @param [Hash] opts BFS::Blob#open options
     # @yield A block over a formatted stream.
     # @yieldparam [Feedx::Format::Abstract] formatted input stream.
-    def open(**opts)
+    def open(**opts, &block)
       @blob.open(**opts) do |io|
         @compress.reader(io, **@opts) do |cio|
-          @format.decoder(cio, **@opts) do |fmt|
-            yield fmt
-          end
+          @format.decoder(cio, **@opts, &block)
         end
       end
     end
@@ -50,12 +48,10 @@ module Feedx
     # @param [Hash] opts BFS::Blob#create options
     # @yield A block over a formatted stream.
     # @yieldparam [Feedx::Format::Abstract] formatted output stream.
-    def create(**opts)
+    def create(**opts, &block)
       @blob.create(**opts) do |io|
         @compress.writer(io, **@opts) do |cio|
-          @format.encoder(cio, **@opts) do |fmt|
-            yield fmt
-          end
+          @format.encoder(cio, **@opts, &block)
         end
       end
     end

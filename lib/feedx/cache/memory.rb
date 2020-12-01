@@ -3,6 +3,7 @@ require 'monitor'
 # Thread-safe in-memory cache. Use for testing only.
 class Feedx::Cache::Memory < Feedx::Cache::Abstract
   def initialize
+    super
     @monitor = Monitor.new
     @entries = {}
   end

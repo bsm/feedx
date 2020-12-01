@@ -8,7 +8,7 @@ RSpec.describe Feedx::Consumer do
 
   it 'should reject invalid inputs' do
     expect do
-      described_class.each('mock:///dir/file.txt', klass) {}
+      described_class.each('mock:///dir/file.txt', klass)
     end.to raise_error(/unable to detect format/)
   end
 

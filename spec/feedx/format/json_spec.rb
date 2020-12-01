@@ -10,11 +10,11 @@ RSpec.describe Feedx::Format::JSON do
       enc.encode(Feedx::TestCase::Model.new('Y'))
       enc.encode(Feedx::TestCase::Message.new(title: 'Z'))
     end
-    expect(wio.string.lines).to eq [
-      %({"title":"X","updated_at":"2018-01-05 11:25:15 UTC"}\n),
-      %({"title":"Y","updated_at":"2018-01-05 11:25:15 UTC"}\n),
-      %({"title":"Z"}\n),
-    ]
+    expect(wio.string).to eq(<<~JSON)
+      {"title":"X","updated_at":"2018-01-05 11:25:15 UTC"}
+      {"title":"Y","updated_at":"2018-01-05 11:25:15 UTC"}
+      {"title":"Z"}
+    JSON
 
     subject.decoder rio do |dec|
       expect(dec.decode(Feedx::TestCase::Model)).to eq(Feedx::TestCase::Model.new('X'))
