@@ -32,26 +32,25 @@ module Feedx
     end
 
     def perform
-      stream = Feedx::Stream.new(@url, **@opts)
-      enum = @enum.is_a?(Proc) ? @enum.call : @enum
-      last_mod = @last_mod.is_a?(Proc) ? @last_mod.call(enum) : @last_mod
-      local_rev = last_mod.is_a?(Integer) ? last_mod : (last_mod.to_f * 1000).floor
+      Feedx::Stream.open(@url, **@opts) do |stream|
+        enum = @enum.is_a?(Proc) ? @enum.call : @enum
+        last_mod = @last_mod.is_a?(Proc) ? @last_mod.call(enum) : @last_mod
+        local_rev = last_mod.is_a?(Integer) ? last_mod : (last_mod.to_f * 1000).floor
 
-      begin
-        metadata   = stream.blob.info.metadata
-        remote_rev = (metadata[META_LAST_MODIFIED] || metadata[META_LAST_MODIFIED_DC]).to_i
-        return -1 unless local_rev > remote_rev
-      rescue BFS::FileNotFound
-        nil
-      end if local_rev.positive?
+        begin
+          metadata   = stream.blob.info.metadata
+          remote_rev = (metadata[META_LAST_MODIFIED] || metadata[META_LAST_MODIFIED_DC]).to_i
+          return -1 unless local_rev > remote_rev
+        rescue BFS::FileNotFound
+          nil
+        end if local_rev.positive?
 
-      stream.create metadata: { META_LAST_MODIFIED => local_rev.to_s } do |fmt|
-        iter = enum.respond_to?(:find_each) ? :find_each : :each
-        enum.send(iter) {|rec| fmt.encode(rec, **@opts) }
+        stream.create metadata: { META_LAST_MODIFIED => local_rev.to_s } do |fmt|
+          iter = enum.respond_to?(:find_each) ? :find_each : :each
+          enum.send(iter) {|rec| fmt.encode(rec, **@opts) }
+        end
+        stream.blob.info.size
       end
-      stream.blob.info.size
-    ensure
-      stream&.close
     end
   end
 end

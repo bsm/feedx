@@ -33,9 +33,9 @@ RSpec.describe Feedx::Stream do
     end
     expect(result).to eq(21)
 
-    expect(bucket.read('dir/file.txt')).to eq(
-      %({"title":"X","updated_at":"2018-01-05 11:25:15 UTC"}\n),
-    )
+    expect(bucket.read('dir/file.txt')).to eq(<<~JSON)
+      {"title":"X","updated_at":"2018-01-05 11:25:15 UTC"}
+    JSON
   end
 
   it 'should encode' do
@@ -44,10 +44,10 @@ RSpec.describe Feedx::Stream do
       s.encode(Feedx::TestCase::Model.new('Y'))
     end
 
-    expect(bucket.read('dir/file.json')).to eq(
-      %({"title":"X","updated_at":"2018-01-05 11:25:15 UTC"}\n) +
-      %({"title":"Y","updated_at":"2018-01-05 11:25:15 UTC"}\n),
-    )
+    expect(bucket.read('dir/file.json')).to eq(<<~JSON)
+      {"title":"X","updated_at":"2018-01-05 11:25:15 UTC"}
+      {"title":"Y","updated_at":"2018-01-05 11:25:15 UTC"}
+    JSON
   end
 
   it 'should encode compressed' do
@@ -65,6 +65,18 @@ RSpec.describe Feedx::Stream do
       s.encode(Feedx::TestCase::Model.new('X'))
     end
     expect(bucket.info('dir/file.json').metadata).to eq('X' => '5')
+  end
+
+  it 'should abort encode on errors (if compressed)' do
+    stop = RuntimeError.new('STOP')
+    expect do
+      compressed.create do |s|
+        s.encode(Feedx::TestCase::Model.new('X'))
+        raise stop
+      end
+    end.to raise_error(stop)
+
+    expect(bucket.ls('**').to_a).to be_empty
   end
 
   it 'should decode' do
