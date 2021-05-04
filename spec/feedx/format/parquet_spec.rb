@@ -11,7 +11,7 @@ RSpec.describe Feedx::Format::Parquet do
     ])
   end
 
-  it 'should encode/decode' do
+  it 'encode/decodes' do
     subject.encoder wio, schema: schema, batch_size: 2 do |enc|
       enc.encode(Feedx::TestCase::Model.new('X'))
       enc.encode(Feedx::TestCase::Model.new('Y'))

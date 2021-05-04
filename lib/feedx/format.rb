@@ -27,7 +27,7 @@ module Feedx
           ext = File.extname(base)
           raise ArgumentError, 'unable to detect format' if ext.empty?
 
-          kind = _resolve(ext[1..-1]) || _resolve(ext[1..-2])
+          kind = _resolve(ext[1..]) || _resolve(ext[1..-2])
           return kind if kind
 
           base = base[0..-ext.size - 1]

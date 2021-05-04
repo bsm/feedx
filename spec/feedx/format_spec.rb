@@ -1,13 +1,13 @@
 require 'spec_helper'
 
 RSpec.describe Feedx::Format do
-  it 'should resolve' do
+  it 'resolves' do
     expect(described_class.resolve(:json)).to be_instance_of(described_class::JSON)
     expect(described_class.resolve(:pb)).to be_instance_of(described_class::Protobuf)
     expect { described_class.resolve(:txt) }.to raise_error(/invalid format txt/)
   end
 
-  it 'should detect' do
+  it 'detects' do
     expect(described_class.detect('path/to/file.json')).to be_instance_of(described_class::JSON)
     expect(described_class.detect('path/to/file.jsonz')).to be_instance_of(described_class::JSON)
     expect(described_class.detect('path/to/file.json.gz')).to be_instance_of(described_class::JSON)

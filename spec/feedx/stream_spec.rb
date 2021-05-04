@@ -1,22 +1,22 @@
 require 'spec_helper'
 
 RSpec.describe Feedx::Stream do
+  subject { described_class.new('mock:///dir/file.json') }
+
   let(:bucket) { BFS::Bucket::InMem.new }
   let(:compressed) { described_class.new('mock:///dir/file.json.gz') }
 
-  subject { described_class.new('mock:///dir/file.json') }
-
   before  { allow(BFS).to receive(:resolve).and_return(bucket) }
-  after { subject.close }
-  after { compressed.close }
 
-  it 'should reject invalid inputs' do
+  after { subject.close; compressed.close }
+
+  it 'rejects invalid inputs' do
     expect do
       described_class.new('mock:///dir/file.txt')
     end.to raise_error(/unable to detect format/)
   end
 
-  it 'should accept custom formats' do
+  it 'accepts custom formats' do
     format = Class.new do
       def encoder(io, &block)
         Feedx::Format::JSON::Encoder.open(io, &block)
@@ -38,7 +38,7 @@ RSpec.describe Feedx::Stream do
     JSON
   end
 
-  it 'should encode' do
+  it 'encodes' do
     subject.create do |s|
       s.encode(Feedx::TestCase::Model.new('X'))
       s.encode(Feedx::TestCase::Model.new('Y'))
@@ -50,7 +50,7 @@ RSpec.describe Feedx::Stream do
     JSON
   end
 
-  it 'should encode compressed' do
+  it 'encodes compressed' do
     compressed.create do |s|
       100.times do
         s.encode(Feedx::TestCase::Model.new('X'))
@@ -60,14 +60,14 @@ RSpec.describe Feedx::Stream do
     expect(bucket.info('dir/file.json.gz').size).to be_within(10).of(108)
   end
 
-  it 'should encode with create options' do
+  it 'encodes with create options' do
     subject.create metadata: { 'x' => '5' } do |s|
       s.encode(Feedx::TestCase::Model.new('X'))
     end
     expect(bucket.info('dir/file.json').metadata).to eq('X' => '5')
   end
 
-  it 'should abort encode on errors (if compressed)' do
+  it 'aborts encode on errors (if compressed)' do
     stop = RuntimeError.new('STOP')
     expect do
       compressed.create do |s|
@@ -79,7 +79,7 @@ RSpec.describe Feedx::Stream do
     expect(bucket.ls('**').to_a).to be_empty
   end
 
-  it 'should decode' do
+  it 'decodes' do
     subject.create do |s|
       s.encode(Feedx::TestCase::Model.new('X'))
       s.encode(Feedx::TestCase::Model.new('Y'))
@@ -93,7 +93,7 @@ RSpec.describe Feedx::Stream do
     end
   end
 
-  it 'should decode compressed' do
+  it 'decodes compressed' do
     compressed.create do |s|
       s.encode(Feedx::TestCase::Model.new('X'))
       s.encode(Feedx::TestCase::Model.new('Y'))

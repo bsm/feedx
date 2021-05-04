@@ -1,7 +1,7 @@
 require 'spec_helper'
 
 RSpec.describe Feedx::Compression::None do
-  it 'should wrap readers/writers' do
+  it 'wraps readers/writers' do
     wio = StringIO.new
     subject.writer(wio) {|w| w.write 'xyz' * 1000 }
     expect(wio.size).to eq(3000)

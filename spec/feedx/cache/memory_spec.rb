@@ -1,7 +1,7 @@
 require 'spec_helper'
 
 RSpec.describe Feedx::Cache::Memory do
-  it 'should read/write' do
+  it 'read/writes' do
     expect(subject.fetch('key')).to be_nil
     expect(subject.fetch('key') { 'value' }).to eq('value')
     expect(subject.fetch('key')).to eq('value')
@@ -16,7 +16,7 @@ RSpec.describe Feedx::Cache::Memory do
     expect(subject.fetch('key')).to be_nil
   end
 
-  it 'should write strings' do
+  it 'writes strings' do
     subject.write('key', 5)
     expect(subject.read('key')).to eq('5')
   end

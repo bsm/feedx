@@ -2,10 +2,11 @@ require 'spec_helper'
 
 RSpec.describe Feedx::Format::Abstract do
   subject   { Feedx::Format::JSON.new }
+
   let(:wio) { StringIO.new }
   let(:rio) { StringIO.open(wio.string) }
 
-  it 'should decode each' do
+  it 'decodes each' do
     subject.encoder wio do |enc|
       enc.encode(Feedx::TestCase::Model.new('X'))
       enc.encode(Feedx::TestCase::Model.new('Y'))
