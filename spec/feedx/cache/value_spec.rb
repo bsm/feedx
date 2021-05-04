@@ -5,7 +5,7 @@ RSpec.describe Feedx::Cache::Value do
     described_class.new(Feedx::Cache::Memory.new, 'key')
   end
 
-  it 'should read/write' do
+  it 'read/writes' do
     expect(subject.fetch).to be_nil
     expect(subject.fetch { 'value' }).to eq('value')
     expect(subject.fetch).to eq('value')

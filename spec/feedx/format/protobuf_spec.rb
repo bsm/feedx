@@ -4,7 +4,7 @@ RSpec.describe Feedx::Format::Protobuf do
   let(:wio) { StringIO.new }
   let(:rio) { StringIO.open(wio.string) }
 
-  it 'should encode/decode' do
+  it 'encode/decodes' do
     subject.encoder wio do |enc|
       enc.encode(Feedx::TestCase::Model.new('X'))
       enc.encode(Feedx::TestCase::Model.new('Y'))
