@@ -4,6 +4,8 @@ github.com/bmatcuk/doublestar/v3 v3.0.0 h1:TQtVPlDnAYwcrVNB2JiGuMc++H5qzWZd9PhkN
 github.com/bmatcuk/doublestar/v3 v3.0.0/go.mod h1:6PcTVMw80pCY1RVuoqu3V++99uQB3vsSYKPTd8AWA0k=
 github.com/bsm/bfs v0.11.3 h1:BTFCftgmuVZwwu6vyjhyKr/Pg1E+cZ5tLodj3wKxr94=
 github.com/bsm/bfs v0.11.3/go.mod h1:sUhBrbc9g0XThRRrT9hiinMhhKbkKIdhLkFljk4fuzM=
+github.com/bsm/feedx v0.12.5 h1:N751MFTRKRgoP5eG1S30EoUuHsI7aAxJ0aQZg+7xf/Y=
+github.com/bsm/feedx v0.12.5/go.mod h1:l5YNhFomuWy9du+8+hznXMH8Hug2qSMik7b5Vipcy58=
 github.com/bsm/ginkgo v1.16.0/go.mod h1:RabIZLzOCPghgHJKUqHZpqrQETA5AnF4aCSIYy5C1bk=
 github.com/bsm/ginkgo v1.16.1 h1:jp1v1dbmbGZDWmnGXDTN+XK3U1fTTNja9xYa7VBI0l0=
 github.com/bsm/ginkgo v1.16.1/go.mod h1:RabIZLzOCPghgHJKUqHZpqrQETA5AnF4aCSIYy5C1bk=
