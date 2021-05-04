@@ -4,8 +4,8 @@ import (
 	"testing"
 	"time"
 
-	. "github.com/onsi/ginkgo"
-	. "github.com/onsi/gomega"
+	. "github.com/bsm/ginkgo"
+	. "github.com/bsm/gomega"
 )
 
 type mockStruct struct {

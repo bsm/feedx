@@ -1,6 +1,6 @@
 Gem::Specification.new do |s|
   s.name          = 'feedx'
-  s.version       = '0.12.4'
+  s.version       = '0.12.5'
   s.authors       = ['Black Square Media Ltd']
   s.email         = ['info@blacksquaremedia.com']
   s.summary       = %(Exchange data between components via feeds)
