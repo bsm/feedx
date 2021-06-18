@@ -20,7 +20,7 @@ type WriterOptions struct {
 	Compression Compression
 
 	// Provides an optional last modified timestamp which is stored with the remote metadata.
-	// Default: time.Now().
+	// Default: time.Time{}.
 	LastMod time.Time
 }
 
@@ -30,9 +30,6 @@ func (o *WriterOptions) norm(name string) {
 	}
 	if o.Compression == nil {
 		o.Compression = DetectCompression(name)
-	}
-	if o.LastMod.IsZero() {
-		o.LastMod = time.Now()
 	}
 }
 

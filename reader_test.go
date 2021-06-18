@@ -4,6 +4,7 @@ import (
 	"context"
 	"io"
 	"io/ioutil"
+	"time"
 
 	"github.com/bsm/bfs"
 	"github.com/bsm/feedx"
@@ -19,7 +20,7 @@ var _ = Describe("Reader", func() {
 
 	BeforeEach(func() {
 		obj = bfs.NewInMemObject("path/to/file.json")
-		Expect(writeMulti(obj, 3)).To(Succeed())
+		Expect(writeMulti(obj, 3, time.Time{})).To(Succeed())
 
 		var err error
 		subject, err = feedx.NewReader(ctx, obj, nil)

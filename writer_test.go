@@ -51,13 +51,13 @@ var _ = Describe("Writer", func() {
 	})
 
 	It("should encode", func() {
-		Expect(writeMulti(plain, 10)).To(Succeed())
-		Expect(writeMulti(compressed, 10)).To(Succeed())
+		Expect(writeMulti(plain, 10, time.Time{})).To(Succeed())
+		Expect(writeMulti(compressed, 10, mockTime)).To(Succeed())
 
 		info, err := plain.Head(ctx)
 		Expect(err).NotTo(HaveOccurred())
 		Expect(info.Size).To(BeNumerically("~", 370, 10))
-		Expect(info.Metadata).To(Equal(bfs.Metadata{"X-Feedx-Last-Modified": "1515151515123"}))
+		Expect(info.Metadata).To(Equal(bfs.Metadata{"X-Feedx-Last-Modified": "0"}))
 
 		info, err = compressed.Head(ctx)
 		Expect(err).NotTo(HaveOccurred())
