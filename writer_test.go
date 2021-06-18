@@ -20,7 +20,7 @@ var _ = Describe("Writer", func() {
 		compressed = bfs.NewInMemObject("path/to/file.jsonz")
 	})
 
-	It("should write plain", func() {
+	It("writes plain", func() {
 		w := feedx.NewWriter(context.Background(), plain, &feedx.WriterOptions{
 			LastMod: time.Unix(1515151515, 123456789),
 		})
@@ -35,7 +35,7 @@ var _ = Describe("Writer", func() {
 		Expect(info.Metadata).To(Equal(bfs.Metadata{"X-Feedx-Last-Modified": "1515151515123"}))
 	})
 
-	It("should write compressed", func() {
+	It("writes compressed", func() {
 		w := feedx.NewWriter(context.Background(), compressed, &feedx.WriterOptions{
 			LastMod: time.Unix(1515151515, 123456789),
 		})
@@ -50,14 +50,14 @@ var _ = Describe("Writer", func() {
 		Expect(info.Metadata).To(Equal(bfs.Metadata{"X-Feedx-Last-Modified": "1515151515123"}))
 	})
 
-	It("should encode", func() {
-		Expect(writeMulti(plain, 10)).To(Succeed())
-		Expect(writeMulti(compressed, 10)).To(Succeed())
+	It("encodes", func() {
+		Expect(writeMulti(plain, 10, time.Time{})).To(Succeed())
+		Expect(writeMulti(compressed, 10, mockTime)).To(Succeed())
 
 		info, err := plain.Head(ctx)
 		Expect(err).NotTo(HaveOccurred())
 		Expect(info.Size).To(BeNumerically("~", 370, 10))
-		Expect(info.Metadata).To(Equal(bfs.Metadata{"X-Feedx-Last-Modified": "1515151515123"}))
+		Expect(info.Metadata).To(Equal(bfs.Metadata{"X-Feedx-Last-Modified": "0"}))
 
 		info, err = compressed.Head(ctx)
 		Expect(err).NotTo(HaveOccurred())

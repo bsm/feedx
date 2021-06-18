@@ -32,7 +32,7 @@ var _ = Describe("Compression", func() {
 		Expect(r.Close()).To(Succeed())
 	}
 
-	It("should detect the format", func() {
+	It("detects the format", func() {
 		Expect(feedx.DetectCompression("/path/to/file.json")).To(Equal(feedx.NoCompression))
 		Expect(feedx.DetectCompression("/path/to/file.json.gz")).To(Equal(feedx.GZipCompression))
 		Expect(feedx.DetectCompression("/path/to/file.jsonz")).To(Equal(feedx.GZipCompression))
@@ -53,7 +53,7 @@ var _ = Describe("Compression", func() {
 		var subject = feedx.NoCompression
 		var _ feedx.Compression = subject
 
-		It("should write/read", func() {
+		It("writes/reads", func() {
 			runSharedTest(subject)
 		})
 	})
@@ -62,7 +62,7 @@ var _ = Describe("Compression", func() {
 		var subject = feedx.GZipCompression
 		var _ feedx.Compression = subject
 
-		It("should write/read", func() {
+		It("writes/reads", func() {
 			runSharedTest(subject)
 		})
 	})
@@ -71,7 +71,7 @@ var _ = Describe("Compression", func() {
 		var subject = feedx.FlateCompression
 		var _ feedx.Compression = subject
 
-		It("should write/read", func() {
+		It("writes/reads", func() {
 			runSharedTest(subject)
 		})
 	})

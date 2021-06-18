@@ -50,6 +50,8 @@ type Consumer interface {
 	Data() interface{}
 	// LastSync returns time of last sync attempt.
 	LastSync() time.Time
+	// LastConsumed returns time of last feed consumption.
+	LastConsumed() time.Time
 	// LastModified returns time at which the remote feed was last modified.
 	LastModified() time.Time
 	// NumRead returns the number of values consumed during the last sync.
@@ -114,7 +116,7 @@ type consumer struct {
 	cfn  ConsumeFunc
 	data atomic.Value
 
-	numRead, lastMod, lastSync int64
+	numRead, lastMod, lastSync, lastConsumed int64
 }
 
 // Data implements Consumer interface.
@@ -132,6 +134,11 @@ func (c *consumer) LastSync() time.Time {
 	return timestamp(atomic.LoadInt64(&c.lastSync)).Time()
 }
 
+// LastConsumed implements Consumer interface.
+func (c *consumer) LastConsumed() time.Time {
+	return timestamp(atomic.LoadInt64(&c.lastConsumed)).Time()
+}
+
 // LastModified implements Consumer interface.
 func (c *consumer) LastModified() time.Time {
 	return timestamp(atomic.LoadInt64(&c.lastMod)).Time()
@@ -147,8 +154,9 @@ func (c *consumer) Close() error {
 }
 
 func (c *consumer) sync(force bool) (*ConsumerSync, error) {
+	syncTime := timestampFromTime(time.Now()).Millis()
 	defer func() {
-		atomic.StoreInt64(&c.lastSync, timestampFromTime(time.Now()).Millis())
+		atomic.StoreInt64(&c.lastSync, syncTime)
 	}()
 
 	// retrieve original last modified time
@@ -158,7 +166,7 @@ func (c *consumer) sync(force bool) (*ConsumerSync, error) {
 	}
 
 	// skip update if not forced or modified
-	if lastMod.Millis() == atomic.LoadInt64(&c.lastMod) && !force {
+	if !force && lastMod > 0 && lastMod.Millis() == atomic.LoadInt64(&c.lastMod) {
 		return &ConsumerSync{Consumer: c}, nil
 	}
 
@@ -180,6 +188,7 @@ func (c *consumer) sync(force bool) (*ConsumerSync, error) {
 	c.data.Store(data)
 	atomic.StoreInt64(&c.numRead, int64(reader.NumRead()))
 	atomic.StoreInt64(&c.lastMod, lastMod.Millis())
+	atomic.StoreInt64(&c.lastConsumed, syncTime)
 	return &ConsumerSync{
 		Consumer:     c,
 		Updated:      true,
