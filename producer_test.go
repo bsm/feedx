@@ -43,7 +43,7 @@ var _ = Describe("Producer", func() {
 		}
 	})
 
-	It("should produce", func() {
+	It("produces", func() {
 		setup(nil)
 
 		Expect(subject.LastPush()).To(BeTemporally("~", time.Now(), time.Second))
@@ -56,7 +56,7 @@ var _ = Describe("Producer", func() {
 		Expect(info.Size).To(BeNumerically("~", 75, 10))
 	})
 
-	It("should produce with custom last-mod check", func() {
+	It("produces with custom last-mod check", func() {
 		setup(&feedx.ProducerOptions{
 			Interval:     50 * time.Millisecond,
 			LastModCheck: func(_ context.Context) (time.Time, error) { return time.Unix(1515151515, 987654321), nil },

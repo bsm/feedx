@@ -40,7 +40,7 @@ var _ = Describe("Format", func() {
 		Expect(dec.Close()).To(Succeed())
 	}
 
-	It("should detect the format", func() {
+	It("detects the format", func() {
 		Expect(feedx.DetectFormat("/path/to/file.json")).To(Equal(feedx.JSONFormat))
 		Expect(feedx.DetectFormat("/path/to/file.json.gz")).To(Equal(feedx.JSONFormat))
 		Expect(feedx.DetectFormat("/path/to/file.json.flate")).To(Equal(feedx.JSONFormat))
@@ -60,7 +60,7 @@ var _ = Describe("Format", func() {
 		var subject = feedx.JSONFormat
 		var _ feedx.Format = subject
 
-		It("should encode/decode", func() {
+		It("encodes/decodes", func() {
 			runSharedTest(subject)
 		})
 	})
@@ -69,7 +69,7 @@ var _ = Describe("Format", func() {
 		var subject = feedx.ProtobufFormat
 		var _ feedx.Format = subject
 
-		It("should encode/decode", func() {
+		It("encodes/decodes", func() {
 			runSharedTest(subject)
 		})
 	})

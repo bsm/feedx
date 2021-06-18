@@ -31,14 +31,14 @@ var _ = Describe("Reader", func() {
 		Expect(subject.Close()).To(Succeed())
 	})
 
-	It("should read", func() {
+	It("reads", func() {
 		data, err := ioutil.ReadAll(subject)
 		Expect(err).NotTo(HaveOccurred())
 		Expect(len(data)).To(BeNumerically("~", 110, 20))
 		Expect(subject.NumRead()).To(Equal(0))
 	})
 
-	It("should decode", func() {
+	It("decodes", func() {
 		var msgs []*testdata.MockMessage
 		for {
 			var msg testdata.MockMessage

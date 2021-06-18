@@ -34,7 +34,7 @@ var _ = Describe("Decoder", func() {
 		Expect(fixture.Close()).To(Succeed())
 	})
 
-	It("should decode", func() {
+	It("decodes", func() {
 		v1 := new(mockStruct)
 		Expect(subject.Decode(v1)).To(Succeed())
 		Expect(v1).To(Equal(&mockStruct{
@@ -77,7 +77,7 @@ var _ = Describe("Decoder", func() {
 		Expect(subject.Decode(v9)).To(MatchError(io.EOF))
 	})
 
-	It("should open from non-file readers", func() {
+	It("opens from non-file readers", func() {
 		bin, err := ioutil.ReadFile("testdata/alltypes_plain.parquet")
 		Expect(err).NotTo(HaveOccurred())
 

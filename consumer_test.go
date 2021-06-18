@@ -44,7 +44,7 @@ var _ = Describe("Consumer", func() {
 		Expect(subject.Close()).To(Succeed())
 	})
 
-	It("should sync and retrieve feeds from remote", func() {
+	It("syncs/retrieves feeds from remote", func() {
 		Expect(subject.LastSync()).To(BeTemporally("~", time.Now(), time.Second))
 		Expect(subject.LastConsumed()).To(BeTemporally("==", subject.LastSync()))
 		Expect(subject.LastModified()).To(BeTemporally("==", mockTime.Truncate(time.Millisecond)))
