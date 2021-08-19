@@ -7,4 +7,5 @@ require (
 	github.com/bsm/ginkgo v1.16.1
 	github.com/bsm/gomega v1.11.0
 	github.com/bsm/parquet-go v0.0.0-20200904113737-792434824f00
+	github.com/fraugster/parquet-go v0.3.0
 )

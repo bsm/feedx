@@ -7,6 +7,9 @@ import (
 	"os"
 
 	"github.com/bsm/feedx"
+	goparquet "github.com/fraugster/parquet-go"
+	"github.com/fraugster/parquet-go/parquet"
+	"github.com/fraugster/parquet-go/parquetschema"
 )
 
 // Format is a parquet format.
@@ -37,8 +40,40 @@ func (f *Format) NewDecoder(r io.Reader) (feedx.FormatDecoder, error) {
 }
 
 // NewEncoder implements Format.
-func (*Format) NewEncoder(w io.Writer) (feedx.FormatEncoder, error) {
-	return nil, fmt.Errorf("not implemented")
+func (f *Format) NewEncoder(w io.Writer) (feedx.FormatEncoder, error) {
+	// TODO! schema will need to be configured
+	// TODO! we could probably use the format Columns
+	schemaDef, err := parquetschema.ParseSchemaDefinition(
+		`message test {
+                       required int64 id;
+                       required binary city (STRING);
+                       optional int64 population;
+               }`)
+	if err != nil {
+		return nil, err
+	}
+
+	fw := goparquet.NewFileWriter(w,
+		goparquet.WithCompressionCodec(parquet.CompressionCodec_SNAPPY),
+		goparquet.WithSchemaDefinition(schemaDef),
+		goparquet.WithCreator("write-lowlevel"),
+	)
+
+	return parquetEncoderWrapper{fw: fw}, nil
+}
+
+type parquetEncoderWrapper struct{ fw *goparquet.FileWriter }
+
+func (w parquetEncoderWrapper) Encode(v interface{}) error {
+	val, ok := v.(map[string]interface{})
+	if !ok {
+		return fmt.Errorf("feedx: value %v is not a map[string]interface{}", v)
+	}
+	return w.fw.AddData(val)
+}
+
+func (w parquetEncoderWrapper) Close() error {
+	return w.fw.Close()
 }
 
 // --------------------------------------------------------------------
