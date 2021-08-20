@@ -64,4 +64,13 @@ var _ = Describe("Format", func() {
 			runSharedTest(subject)
 		})
 	})
+
+	Describe("ProtobufFormat", func() {
+		var subject = feedx.ProtobufFormat
+		var _ feedx.Format = subject
+
+		It("encodes/decodes", func() {
+			runSharedTest(subject)
+		})
+	})
 })
