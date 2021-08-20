@@ -198,14 +198,17 @@ type parquetWrapper struct {
 }
 
 func (w *parquetWrapper) Decode(v interface{}) error {
+	// read the next value and scan
 	if w.ffr.Next() {
 		return w.ffr.Scan(v)
 	}
 
+	// check for errors
 	if err := w.ffr.Err(); err != nil {
 		return err
 	}
 
+	// end of file
 	return io.EOF
 }
 
