@@ -10,8 +10,6 @@ import (
 	"github.com/bsm/pbio"
 	"google.golang.org/protobuf/proto"
 
-	goparquet "github.com/fraugster/parquet-go"
-	"github.com/fraugster/parquet-go/floor"
 	gio "github.com/gogo/protobuf/io"
 	gproto "github.com/gogo/protobuf/proto"
 )
@@ -161,61 +159,4 @@ func (w *protobufWrapper) Encode(v interface{}) error {
 
 func (*protobufWrapper) Close() error {
 	return nil
-}
-
-// --------------------------------------------------------------------
-
-// ParquetFormat provides a Format implemention for Protobuf.
-var ParquetFormat = parquetFormat{}
-
-type parquetFormat struct{}
-
-// NewDecoder implements Format.
-func (parquetFormat) NewDecoder(r io.Reader) (FormatDecoder, error) {
-	rs, ok := r.(io.ReadSeeker)
-	if !ok {
-		return nil, fmt.Errorf("value %v is not an io.ReaderSeeker", r)
-	}
-
-	pfr, err := goparquet.NewFileReader(rs)
-	if err != nil {
-		return nil, err
-	}
-
-	return &parquetWrapper{
-			pfr: pfr,
-			ffr: floor.NewReader(pfr)},
-		nil
-}
-
-func (parquetFormat) NewEncoder(w io.Writer) (FormatEncoder, error) {
-	return nil, fmt.Errorf("not implemented")
-}
-
-type parquetWrapper struct {
-	pfr *goparquet.FileReader
-	ffr *floor.Reader
-}
-
-func (w *parquetWrapper) Decode(v interface{}) error {
-	// read the next value and scan
-	if w.ffr.Next() {
-		return w.ffr.Scan(v)
-	}
-
-	// check for errors
-	if err := w.ffr.Err(); err != nil {
-		return err
-	}
-
-	// end of file
-	return io.EOF
-}
-
-func (*parquetWrapper) Encode(v interface{}) error {
-	return nil
-}
-
-func (w *parquetWrapper) Close() error {
-	return w.ffr.Close()
 }

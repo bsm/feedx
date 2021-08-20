@@ -5,7 +5,6 @@ import (
 	"io"
 	"io/ioutil"
 	"os"
-	"time"
 
 	"github.com/bsm/feedx"
 	"github.com/bsm/feedx/ext/parquet"
@@ -24,7 +23,7 @@ var _ = Describe("Decoder", func() {
 		fixture, err = os.Open("testdata/alltypes_plain.parquet")
 		Expect(err).NotTo(HaveOccurred())
 
-		format := &parquet.Format{BatchSize: 3}
+		format := &parquet.Format{}
 		subject, err = format.NewDecoder(fixture)
 		Expect(err).NotTo(HaveOccurred())
 	})
@@ -42,7 +41,7 @@ var _ = Describe("Decoder", func() {
 			Bool:       true,
 			Float:      f32ptr(0),
 			DateString: "03/01/09", ByteString: []byte("0"),
-			Timestamp: time.Unix(1235865600, 0),
+			// Timestamp: time.Unix(1235865600, 0),
 		}))
 
 		v2 := new(mockStruct)
@@ -52,7 +51,7 @@ var _ = Describe("Decoder", func() {
 			TinyInt: 1, SmallUint: 1, StdInt: 1, BigInt: 10,
 			Float: f32ptr(1.1), Double: 10.1,
 			DateString: "03/01/09", ByteString: []byte("1"),
-			Timestamp: time.Unix(1235865660, 0),
+			// Timestamp: time.Unix(1235865660, 0),
 		}))
 
 		Expect(subject.Decode(new(mockStruct))).To(Succeed()) // v3
@@ -67,7 +66,7 @@ var _ = Describe("Decoder", func() {
 			TinyInt: 1, SmallUint: 1, StdInt: 1, BigInt: 10,
 			Float: f32ptr(1.1), Double: 10.1,
 			DateString: "02/01/09", ByteString: []byte("1"),
-			Timestamp: time.Unix(1233446460, 0),
+			// Timestamp: time.Unix(1233446460, 0),
 		}))
 
 		Expect(subject.Decode(new(mockStruct))).To(Succeed()) // v7

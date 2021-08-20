@@ -11,15 +11,13 @@ import (
 
 // Format is a parquet format.
 type Format struct {
-	TempDir   string
-	Columns   []string // column names to include
-	BatchSize int      // batch size, default: 1,000
+	TempDir string
 }
 
 // NewDecoder implements Format.
 func (f *Format) NewDecoder(r io.Reader) (feedx.FormatDecoder, error) {
 	if rs, ok := r.(io.ReadSeeker); ok {
-		return newDecoder(rs, f.Columns, f.BatchSize)
+		return newDecoder(rs)
 	}
 
 	tmp, err := copyToTempFile(f.TempDir, r)
@@ -27,7 +25,7 @@ func (f *Format) NewDecoder(r io.Reader) (feedx.FormatDecoder, error) {
 		return nil, err
 	}
 
-	dec, err := newDecoder(tmp, f.Columns, f.BatchSize)
+	dec, err := newDecoder(tmp)
 	if err != nil {
 		_ = tmp.Close()
 		return nil, err
