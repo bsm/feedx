@@ -8,4 +8,5 @@ require (
 	github.com/bsm/gomega v1.11.0
 	github.com/bsm/parquet-go v0.0.0-20200904113737-792434824f00
 	github.com/fraugster/parquet-go v0.3.0
+	go.uber.org/multierr v1.7.0
 )

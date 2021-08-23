@@ -5,12 +5,13 @@ import (
 
 	goparquet "github.com/fraugster/parquet-go"
 	"github.com/fraugster/parquet-go/floor"
+	"go.uber.org/multierr"
 )
 
 type decoder struct {
-	pfr     *goparquet.FileReader
-	ffr     *floor.Reader
-	closers []io.Closer
+	pfr *goparquet.FileReader
+	ffr *floor.Reader
+	tmp *tempFile
 }
 
 func newDecoder(rs io.ReadSeeker) (*decoder, error) {
@@ -22,9 +23,8 @@ func newDecoder(rs io.ReadSeeker) (*decoder, error) {
 	ffr := floor.NewReader(pfr)
 
 	return &decoder{
-			pfr:     pfr,
-			ffr:     ffr,
-			closers: []io.Closer{ffr},
+			pfr: pfr,
+			ffr: ffr,
 		},
 		nil
 }
@@ -45,10 +45,12 @@ func (w *decoder) Decode(v interface{}) error {
 }
 
 func (w *decoder) Close() (err error) {
-	for _, c := range w.closers {
-		if e := c.Close(); e != nil {
-			err = e
-		}
+	// close the tmp file if present
+	if w.tmp != nil {
+		err = multierr.Append(err, w.tmp.Close())
 	}
+
+	// close the reader
+	err = multierr.Append(err, w.ffr.Close())
 	return
 }

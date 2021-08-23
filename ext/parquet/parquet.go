@@ -30,7 +30,7 @@ func (f *Format) NewDecoder(r io.Reader) (feedx.FormatDecoder, error) {
 		_ = tmp.Close()
 		return nil, err
 	}
-	dec.closers = append(dec.closers, tmp)
+	dec.tmp = tmp
 	return dec, nil
 }
 
