@@ -2,6 +2,7 @@ package parquet_test
 
 import (
 	"bytes"
+	"time"
 
 	"github.com/bsm/feedx"
 	"github.com/bsm/feedx/ext/parquet"
@@ -21,6 +22,7 @@ var _ = Describe("Decoder", func() {
 					required int64 id;
 					required binary city (STRING);
 					optional int64 population;
+					optional int64 ts (TIMESTAMP(NANOS, true));
 				}`,
 			},
 		}
@@ -29,7 +31,7 @@ var _ = Describe("Decoder", func() {
 	})
 
 	It("encodes", func() {
-		v1 := map[string]interface{}{"id": int64(1), "city": []byte("London"), "population": int64(8982000)}
+		v1 := map[string]interface{}{"id": int64(1), "city": []byte("London"), "population": int64(8982000), "ts": time.Now().UnixNano()}
 		Expect(subject.Encode(v1)).To(Succeed())
 
 		v2 := map[string]interface{}{"id": int64(2), "city": []byte("Berlin"), "population": int64(3645000)}
