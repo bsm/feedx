@@ -67,7 +67,7 @@ func copyToTempFile(dir string, r io.Reader) (*tempFile, error) {
 	return &tempFile{File: f}, nil
 }
 
-func (f tempFile) Close() error {
+func (f *tempFile) Close() error {
 	err := f.File.Close()
 	if e := os.Remove(f.Name()); e != nil {
 		err = e

@@ -3,13 +3,11 @@ module github.com/bsm/feedx
 go 1.15
 
 require (
-	github.com/bsm/bfs v0.11.3
-	github.com/bsm/ginkgo v1.16.0
-	github.com/bsm/gomega v1.11.0
-	github.com/bsm/pbio v0.2.2
-	github.com/fraugster/parquet-go v0.3.0
+	github.com/bsm/bfs v0.11.4
+	github.com/bsm/ginkgo v1.16.4
+	github.com/bsm/gomega v1.14.0
+	github.com/bsm/pbio v0.3.0
 	github.com/gogo/protobuf v1.3.2
-	github.com/golang/protobuf v1.5.0
-	github.com/kr/pretty v0.1.0 // indirect
-	google.golang.org/protobuf v1.26.0
+	github.com/golang/protobuf v1.5.2
+	google.golang.org/protobuf v1.27.1
 )
