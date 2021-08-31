@@ -5,7 +5,6 @@ import (
 
 	goparquet "github.com/fraugster/parquet-go"
 	"github.com/fraugster/parquet-go/floor"
-	"go.uber.org/multierr"
 )
 
 type decoder struct {
@@ -47,10 +46,14 @@ func (w *decoder) Decode(v interface{}) error {
 func (w *decoder) Close() (err error) {
 	// close the tmp file if present
 	if w.tmp != nil {
-		err = multierr.Append(err, w.tmp.Close())
+		if e := w.tmp.Close(); e != nil {
+			err = e
+		}
 	}
 
 	// close the reader
-	err = multierr.Append(err, w.ffr.Close())
+	if e := w.ffr.Close(); e != nil {
+		err = e
+	}
 	return
 }
