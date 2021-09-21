@@ -1,37 +1,19 @@
 package parquet
 
 import (
-	"fmt"
 	"io"
 	"io/ioutil"
 	"os"
 
 	"github.com/bsm/feedx"
+	goparquet "github.com/fraugster/parquet-go"
 )
-
-type EncoderOpts struct {
-	SchemaDef   string
-	Compression string // compession string from github.com/fraugster/parquet-go
-}
-
-func (o *EncoderOpts) norm() error {
-	if o.SchemaDef == "" {
-		return fmt.Errorf("SchemaDef is missing")
-	}
-
-	if o.Compression == "" {
-		o.Compression = "SNAPPY"
-	}
-
-	return nil
-}
 
 // --------------------------------------------------------------------
 
 // Format is a parquet format.
 type Format struct {
-	TempDir     string
-	EncoderOpts *EncoderOpts
+	TempDir string
 }
 
 // NewDecoder implements Format.
@@ -55,13 +37,8 @@ func (f *Format) NewDecoder(r io.Reader) (feedx.FormatDecoder, error) {
 }
 
 // NewEncoder implements Format.
-func (f *Format) NewEncoder(w io.Writer) (feedx.FormatEncoder, error) {
-	// check options
-	if err := f.EncoderOpts.norm(); err != nil {
-		return nil, err
-	}
-
-	return newEncoder(w, f.EncoderOpts)
+func (f *Format) NewEncoder(w io.Writer, opts ...goparquet.FileWriterOption) (feedx.FormatEncoder, error) {
+	return newEncoder(w, opts)
 }
 
 // --------------------------------------------------------------------

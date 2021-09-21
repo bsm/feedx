@@ -8,9 +8,12 @@ import (
 	"github.com/bsm/feedx/ext/parquet"
 	. "github.com/bsm/ginkgo"
 	. "github.com/bsm/gomega"
+	goparquet "github.com/fraugster/parquet-go"
+	parquetopt "github.com/fraugster/parquet-go/parquet"
+	"github.com/fraugster/parquet-go/parquetschema"
 )
 
-var _ = Describe("Decoder", func() {
+var _ = Describe("Encoder", func() {
 	var subject feedx.FormatEncoder
 
 	f32ptr := func(f float32) *float32 { return &f }
@@ -18,24 +21,26 @@ var _ = Describe("Decoder", func() {
 	BeforeEach(func() {
 		var err error
 		buf := new(bytes.Buffer)
-		format := &parquet.Format{
-			EncoderOpts: &parquet.EncoderOpts{
-				SchemaDef: `message stat {
-					required int64 bigint_col;
-					optional boolean bool_col;
-					optional int32 tinyint_col;
-					optional int32 smallint_col;
-					optional int32 int_col;
-					optional int64 bigint_col;
-					optional float float_col;
-					optional double double_col;
-					optional binary date_string_col (STRING);
-					optional binary string_col;
-					optional int64 timestamp_col (TIMESTAMP(NANOS, true));
-					}`,
-			},
-		}
-		subject, err = format.NewEncoder(buf)
+
+		schemaDef, err := parquetschema.ParseSchemaDefinition(`message stat {
+			required int64 bigint_col;
+			optional boolean bool_col;
+			optional int32 tinyint_col;
+			optional int32 smallint_col;
+			optional int32 int_col;
+			optional int64 bigint_col;
+			optional float float_col;
+			optional double double_col;
+			optional binary date_string_col (STRING);
+			optional binary string_col;
+			optional int64 timestamp_col (TIMESTAMP(NANOS, true));
+			}`)
+		Expect(err).NotTo(HaveOccurred())
+
+		format := &parquet.Format{}
+		subject, err = format.NewEncoder(buf,
+			goparquet.WithSchemaDefinition(schemaDef),
+			goparquet.WithCompressionCodec(parquetopt.CompressionCodec_SNAPPY))
 		Expect(err).NotTo(HaveOccurred())
 	})
 
