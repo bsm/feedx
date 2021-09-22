@@ -48,6 +48,8 @@ func writeMulti(obj *bfs.Object, numEntries int, lastMod time.Time) error {
 	return w.Commit()
 }
 
+// ------------------------------------------------------------------------
+
 func TestSuite(t *testing.T) {
 	RegisterFailHandler(Fail)
 	RunSpecs(t, "feedx")

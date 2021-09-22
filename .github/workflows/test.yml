@@ -48,8 +48,8 @@ jobs:
     steps:
       - name: Install libarrow
         run: |
-          wget https://apache.bintray.com/arrow/$(lsb_release --id --short | tr 'A-Z' 'a-z')/apache-arrow-archive-keyring-latest-$(lsb_release --codename --short).deb
-          sudo apt install -y ./apache-arrow-archive-keyring-latest-$(lsb_release --codename --short).deb
+          wget https://apache.jfrog.io/artifactory/arrow/$(lsb_release --id --short | tr 'A-Z' 'a-z')/apache-arrow-apt-source-latest-$(lsb_release --codename --short).deb
+          sudo apt install -y -V ./apache-arrow-apt-source-latest-$(lsb_release --codename --short).deb
           sudo apt update
           sudo apt install -y libarrow-dev libarrow-glib-dev libarrow-dataset-dev libplasma-dev libplasma-glib-dev libgandiva-dev libgandiva-glib-dev libparquet-dev libparquet-glib-dev
       - uses: actions/checkout@v2
