@@ -1,13 +1,15 @@
 package parquet
 
 import (
-	"fmt"
 	"io"
 	"io/ioutil"
 	"os"
 
 	"github.com/bsm/feedx"
+	goparquet "github.com/fraugster/parquet-go"
 )
+
+// --------------------------------------------------------------------
 
 // Format is a parquet format.
 type Format struct {
@@ -35,8 +37,8 @@ func (f *Format) NewDecoder(r io.Reader) (feedx.FormatDecoder, error) {
 }
 
 // NewEncoder implements Format.
-func (*Format) NewEncoder(w io.Writer) (feedx.FormatEncoder, error) {
-	return nil, fmt.Errorf("not implemented")
+func (f *Format) NewEncoder(w io.Writer, opts ...goparquet.FileWriterOption) (feedx.FormatEncoder, error) {
+	return newEncoder(w, opts)
 }
 
 // --------------------------------------------------------------------
