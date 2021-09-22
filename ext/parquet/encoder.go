@@ -8,7 +8,7 @@ import (
 )
 
 type encoder struct {
-	fw *floor.Writer
+	*floor.Writer
 }
 
 func newEncoder(w io.Writer, opts []goparquet.FileWriterOption) (*encoder, error) {
@@ -17,16 +17,11 @@ func newEncoder(w io.Writer, opts []goparquet.FileWriterOption) (*encoder, error
 
 	return &encoder{
 		// wrap the parquet writer with a floor writer
-		fw: floor.NewWriter(pw),
+		Writer: floor.NewWriter(pw),
 	}, nil
 }
 
 // implements feedx.FormatEncoder
-func (w encoder) Encode(v interface{}) error {
-	return w.fw.Write(v)
-}
-
-// implements feedx.FormatEncoder
-func (w encoder) Close() error {
-	return w.fw.Close()
+func (w *encoder) Encode(v interface{}) error {
+	return w.Writer.Write(v)
 }
