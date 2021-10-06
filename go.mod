@@ -5,7 +5,7 @@ go 1.15
 require (
 	github.com/bsm/bfs v0.11.4
 	github.com/bsm/ginkgo v1.16.4
-	github.com/bsm/gomega v1.14.0
+	github.com/bsm/gomega v1.16.0
 	github.com/bsm/pbio v0.3.0
 	github.com/gogo/protobuf v1.3.2
 	github.com/golang/protobuf v1.5.2
