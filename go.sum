@@ -8,8 +8,8 @@ github.com/bsm/ginkgo v1.16.0/go.mod h1:RabIZLzOCPghgHJKUqHZpqrQETA5AnF4aCSIYy5C
 github.com/bsm/ginkgo v1.16.4 h1:pkHpo2VJRvI0NGlxCYi8qovww76L7+g82MgM+UBvH4A=
 github.com/bsm/ginkgo v1.16.4/go.mod h1:RabIZLzOCPghgHJKUqHZpqrQETA5AnF4aCSIYy5C1bk=
 github.com/bsm/gomega v1.11.0/go.mod h1:JifAceMQ4crZIWYUKrlGcmbN3bqHogVTADMD2ATsbwk=
-github.com/bsm/gomega v1.14.0 h1:fff3W6y46T42W7zBgUyp2tdL4SX5kgt8iEprxxwLGvQ=
-github.com/bsm/gomega v1.14.0/go.mod h1:JifAceMQ4crZIWYUKrlGcmbN3bqHogVTADMD2ATsbwk=
+github.com/bsm/gomega v1.16.0 h1:LEoRGHyYl3MqAcXgczKX/C3bxlxjl3gjP37PGvPNplw=
+github.com/bsm/gomega v1.16.0/go.mod h1:JifAceMQ4crZIWYUKrlGcmbN3bqHogVTADMD2ATsbwk=
 github.com/bsm/pbio v0.3.0 h1:8XzkUPoJZblPkLp2jHVMnIhGs5WaNHTCmO7gRC45izk=
 github.com/bsm/pbio v0.3.0/go.mod h1:3O4XQFoarlYalkGd+zMFfEUyalP8NBKkQ0Ta4IwhN4w=
 github.com/census-instrumentation/opencensus-proto v0.2.1/go.mod h1:f6KPmirojxKA12rnyqOA5BBL4O983OfeGPqjHWSTneU=
