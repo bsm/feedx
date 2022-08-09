@@ -9,7 +9,7 @@ import (
 
 	"github.com/bsm/feedx"
 	"github.com/bsm/feedx/ext/parquet"
-	. "github.com/bsm/ginkgo"
+	. "github.com/bsm/ginkgo/v2"
 	. "github.com/bsm/gomega"
 )
 

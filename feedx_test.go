@@ -9,7 +9,7 @@ import (
 	"github.com/bsm/bfs"
 	"github.com/bsm/feedx"
 	"github.com/bsm/feedx/internal/testdata"
-	. "github.com/bsm/ginkgo"
+	. "github.com/bsm/ginkgo/v2"
 	. "github.com/bsm/gomega"
 )
 

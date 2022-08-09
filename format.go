@@ -9,9 +9,6 @@ import (
 
 	"github.com/bsm/pbio"
 	"google.golang.org/protobuf/proto"
-
-	gio "github.com/gogo/protobuf/io"
-	gproto "github.com/gogo/protobuf/proto"
 )
 
 var errNoFormat = errors.New("feedx: no format detected")
@@ -112,11 +109,9 @@ func (protobufFormat) NewEncoder(w io.Writer) (FormatEncoder, error) {
 type protobufWrapper struct {
 	r   io.Reader
 	dec *pbio.Decoder
-	pbr gio.Reader
 
 	w   io.Writer
 	enc *pbio.Encoder
-	pbw gio.Writer
 }
 
 func (w *protobufWrapper) Decode(v interface{}) error {
@@ -126,13 +121,6 @@ func (w *protobufWrapper) Decode(v interface{}) error {
 			w.dec = pbio.NewDecoder(w.r)
 		}
 		return w.dec.Decode(msg)
-
-	case gproto.Message:
-		if w.pbr == nil {
-			w.pbr = gio.NewDelimitedReader(w.r, 1<<28)
-		}
-		return w.pbr.ReadMsg(msg)
-
 	default:
 		return fmt.Errorf("value %v (%T) is not a proto.Message", v, v)
 	}
@@ -145,12 +133,6 @@ func (w *protobufWrapper) Encode(v interface{}) error {
 			w.enc = pbio.NewEncoder(w.w)
 		}
 		return w.enc.Encode(msg)
-
-	case gproto.Message:
-		if w.pbw == nil {
-			w.pbw = gio.NewDelimitedWriter(w.w)
-		}
-		return w.pbw.WriteMsg(msg)
 
 	default:
 		return fmt.Errorf("value %v (%T) is not a proto.Message", v, v)
