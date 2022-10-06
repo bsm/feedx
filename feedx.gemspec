@@ -1,6 +1,6 @@
 Gem::Specification.new do |s|
   s.name          = 'feedx'
-  s.version       = '0.12.7'
+  s.version       = '0.12.8'
   s.authors       = ['Black Square Media Ltd']
   s.email         = ['info@blacksquaremedia.com']
   s.summary       = %(Exchange data between components via feeds)
@@ -9,7 +9,6 @@ Gem::Specification.new do |s|
   s.license       = 'Apache-2.0'
 
   s.files         = `git ls-files -z`.split("\x0").reject {|f| f.start_with?('spec/') }
-  s.test_files    = `git ls-files -z -- spec/*`.split("\x0")
   s.require_paths = ['lib']
   s.required_ruby_version = '>= 2.7'
 
@@ -18,7 +17,7 @@ Gem::Specification.new do |s|
   s.add_development_dependency 'bundler'
   s.add_development_dependency 'pbio'
   s.add_development_dependency 'rake'
-  s.add_development_dependency 'red-parquet', '>= 3.0', '< 4.0'
+  s.add_development_dependency 'red-parquet', '>= 9.0', '< 10.0'
   s.add_development_dependency 'rspec'
   s.add_development_dependency 'rubocop-bsm'
   s.metadata['rubygems_mfa_required'] = 'true'
