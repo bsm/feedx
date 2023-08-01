@@ -219,6 +219,7 @@ func (p *IncrementalProducer) push() (*IncrementalProducerPush, error) {
 	wopt.LastMod = start
 
 	// write modified data
+	// TODO! set the file extension from WriterOpts format & compression
 	fname := "data-" + strconv.Itoa(manifest.Generation) + "-" + localLastMod.Format("2006-01-02-15:04:05.0000") + ".pbz"
 	numWritten, err := p.writeData(manifest, fname, remoteLastMod.Time(), &wopt)
 	if err != nil {
@@ -254,7 +255,7 @@ func (p *IncrementalProducer) writeManifest(manifest *Manifest, fname string, la
 	manifest.LastModified = timestampFromTime(lastMod)
 
 	name := "manifest.json"
-	wopt.norm(name)
+	wopt.norm(name) // norm sets writer format and compression from name
 
 	writer := NewWriter(p.ctx, bfs.NewObjectFromBucket(p.bucket, name), wopt)
 	defer writer.Discard()
