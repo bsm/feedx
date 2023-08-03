@@ -25,12 +25,6 @@ jobs:
       matrix:
         ruby-version: ["2.7", "3.0", "3.1"]
     steps:
-      - name: Install libarrow
-        run: |
-          wget https://apache.jfrog.io/artifactory/arrow/$(lsb_release --id --short | tr 'A-Z' 'a-z')/apache-arrow-apt-source-latest-$(lsb_release --codename --short).deb
-          sudo apt install -y -V ./apache-arrow-apt-source-latest-$(lsb_release --codename --short).deb
-          sudo apt update
-          sudo apt install -y libarrow-dev libarrow-glib-dev libarrow-dataset-dev libplasma-dev libplasma-glib-dev libgandiva-dev libgandiva-glib-dev libparquet-dev libparquet-glib-dev
       - uses: actions/checkout@v3
       - uses: ruby/setup-ruby@v1
         with:

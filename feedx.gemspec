@@ -1,6 +1,6 @@
 Gem::Specification.new do |s|
   s.name          = 'feedx'
-  s.version       = '0.12.8'
+  s.version       = '0.13.0'
   s.authors       = ['Black Square Media Ltd']
   s.email         = ['info@blacksquaremedia.com']
   s.summary       = %(Exchange data between components via feeds)
@@ -17,7 +17,6 @@ Gem::Specification.new do |s|
   s.add_development_dependency 'bundler'
   s.add_development_dependency 'pbio'
   s.add_development_dependency 'rake'
-  s.add_development_dependency 'red-parquet', '>= 9.0', '< 10.0'
   s.add_development_dependency 'rspec'
   s.add_development_dependency 'rubocop-bsm'
   s.metadata['rubygems_mfa_required'] = 'true'

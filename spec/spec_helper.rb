@@ -40,18 +40,6 @@ module Feedx
       def to_json(*)
         ::JSON.dump(title: @title, updated_at: updated_at)
       end
-
-      def from_parquet(rec)
-        rec.each_pair do |name, value|
-          @title = value if name == 'title'
-        end
-      end
-
-      def to_parquet(schema, *)
-        schema.fields.map do |field|
-          send(field.name)
-        end
-      end
     end
   end
 end
