@@ -24,7 +24,7 @@ var _ = Describe("IncrementalProducer", func() {
 		lastMod := func(_ context.Context) (time.Time, error) {
 			return modTime, nil
 		}
-		subject, err = feedx.NewIncrementalProducerForBucket(ctx, bucket, o, lastMod, func(w *feedx.Writer, lastMod time.Time) error {
+		subject, err = feedx.NewIncrementalProducerForBucket(ctx, bucket, o, lastMod, func(w *feedx.Writer) error {
 			atomic.AddUint32(&numRuns, 1)
 
 			for i := 0; i < 10; i++ {
@@ -53,7 +53,7 @@ var _ = Describe("IncrementalProducer", func() {
 		setup(lastMod, nil)
 
 		Expect(subject.LastPush()).To(BeTemporally("~", time.Now(), time.Second))
-		Expect(subject.LastModified()).To(BeTemporally("~", time.Now(), time.Second))
+		Expect(subject.LastModified()).To(BeTemporally("~", lastMod, time.Second))
 		Expect(subject.NumWritten()).To(Equal(10))
 		Expect(subject.Close()).To(Succeed())
 
@@ -71,6 +71,6 @@ var _ = Describe("IncrementalProducer", func() {
 
 		metaLastMod, err := strconv.ParseInt(info.Metadata.Get("X-Feedx-Last-Modified"), 10, 64)
 		Expect(err).NotTo(HaveOccurred())
-		Expect(time.UnixMilli(metaLastMod)).To(BeTemporally("~", time.Now(), time.Second))
+		Expect(time.UnixMilli(metaLastMod)).To(BeTemporally("~", lastMod, time.Second))
 	})
 })

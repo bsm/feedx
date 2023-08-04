@@ -10,13 +10,6 @@ import (
 	"github.com/bsm/bfs"
 )
 
-// IncrementalProduceFunc is a callback which is run by the producer on every iteration.
-type IncrementalProduceFunc func(w *Writer, lastModified time.Time) error
-
-// LastModifiedFunc will be called before each push attempt
-// to determine the last updated record time.
-type LastModifiedFunc func(context.Context) (time.Time, error)
-
 // Manifest describes the current feed status.
 // the current manifest is consumed before each push and a new manifest written after each push.
 type Manifest struct {
@@ -28,63 +21,42 @@ type Manifest struct {
 	Files []string `json:"files"`
 }
 
-// IncrementalProducerOptions configure the producer instance.
-type IncrementalProducerOptions struct {
-	WriterOptions
-
-	// The interval used by producer to initiate a cycle.
-	// Default: 1m
-	Interval time.Duration
-
-	// AfterPush callbacks are triggered after each push cycle, receiving
-	// the push state and error (if occurred).
-	AfterPush func(*IncrementalProducerPush, error)
-}
-
-func (o *IncrementalProducerOptions) norm() {
-	if o.Format == nil {
-		o.Format = ProtobufFormat
-	}
-
-	if o.Compression == nil {
-		o.Compression = GZipCompression
-	}
-
-	if o.Interval <= 0 {
-		o.Interval = time.Minute
-	}
-}
-
-// IncrementalProducerPush contains the state of the last push.
-type IncrementalProducerPush struct {
-	// Producer exposes the current producer state.
-	*IncrementalProducer
-	// Updated indicates is the push resulted in an update.
-	Updated bool
-}
-
 // IncrementalProducer produces a continuous incremental feed.
 type IncrementalProducer struct {
+	*ProducerState
+
 	bucket    bfs.Bucket
 	ownBucket bool
 	opt       IncrementalProducerOptions
 
-	ctx   context.Context
-	stop  context.CancelFunc
-	modfn LastModifiedFunc
-	pfn   IncrementalProduceFunc
+	ctx  context.Context
+	stop context.CancelFunc
+	pfn  ProduceFunc
+}
 
-	numWritten, lastPush, lastMod int64
+type IncrementalProducerOptions ProducerOptions
+
+func (o *IncrementalProducerOptions) norm(lmfn LastModFunc) {
+	if o.Compression == nil {
+		o.Compression = GZipCompression
+	}
+	if o.Format == nil {
+		o.Format = ProtobufFormat
+	}
+	if o.Interval == 0 {
+		o.Interval = time.Minute
+	}
+	o.LastModCheck = lmfn
 }
 
 // NewIncrementalProducer inits a new incremental feed producer.
-func NewIncrementalProducer(ctx context.Context, bucketURL string, opt *IncrementalProducerOptions, modfn LastModifiedFunc, pfn IncrementalProduceFunc) (*IncrementalProducer, error) {
+func NewIncrementalProducer(ctx context.Context, bucketURL string, opt *IncrementalProducerOptions, lmfn LastModFunc, pfn ProduceFunc) (*IncrementalProducer, error) {
 	bucket, err := bfs.Connect(ctx, bucketURL)
 	if err != nil {
 		return nil, err
 	}
 
-	p, err := NewIncrementalProducerForBucket(ctx, bucket, opt, modfn, pfn)
+	p, err := NewIncrementalProducerForBucket(ctx, bucket, opt, lmfn, pfn)
 	if err != nil {
 		_ = bucket.Close()
 		return nil, err
@@ -95,21 +67,21 @@ func NewIncrementalProducer(ctx context.Context, bucketURL string, opt *Incremen
 }
 
 // NewIncrmentalProducerForRemote starts a new incremental feed producer for a bucket.
-func NewIncrementalProducerForBucket(ctx context.Context, bucket bfs.Bucket, opt *IncrementalProducerOptions, modfn LastModifiedFunc, pfn IncrementalProduceFunc) (*IncrementalProducer, error) {
+func NewIncrementalProducerForBucket(ctx context.Context, bucket bfs.Bucket, opt *IncrementalProducerOptions, lmfn LastModFunc, pfn ProduceFunc) (*IncrementalProducer, error) {
 	var o IncrementalProducerOptions
 	if opt != nil {
 		o = *opt
 	}
-	o.norm()
+	o.norm(lmfn)
 
 	ctx, stop := context.WithCancel(ctx)
 	p := &IncrementalProducer{
-		bucket: bucket,
-		ctx:    ctx,
-		stop:   stop,
-		opt:    o,
-		modfn:  modfn,
-		pfn:    pfn,
+		bucket:        bucket,
+		ctx:           ctx,
+		stop:          stop,
+		opt:           o,
+		pfn:           pfn,
+		ProducerState: new(ProducerState),
 	}
 
 	// run initial push
@@ -132,21 +104,6 @@ func (p *IncrementalProducer) Close() error {
 		return p.bucket.Close()
 	}
 	return nil
-}
-
-// LastPush returns time of last push attempt.
-func (p *IncrementalProducer) LastPush() time.Time {
-	return timestamp(atomic.LoadInt64(&p.lastPush)).Time()
-}
-
-// LastModified returns time at which the remote feed was last modified.
-func (p *IncrementalProducer) LastModified() time.Time {
-	return timestamp(atomic.LoadInt64(&p.lastMod)).Time()
-}
-
-// NumWritten returns the number of values produced during the last push.
-func (p *IncrementalProducer) NumWritten() int {
-	return int(atomic.LoadInt64(&p.numWritten))
 }
 
 func (p *IncrementalProducer) loadManifest() (*Manifest, error) {
@@ -189,17 +146,17 @@ func (p *IncrementalProducer) loop() {
 	}
 }
 
-func (p *IncrementalProducer) push() (*IncrementalProducerPush, error) {
+func (p *IncrementalProducer) push() (*ProducerPush, error) {
 	start := time.Now()
 	atomic.StoreInt64(&p.lastPush, timestampFromTime(start).Millis())
 
 	// get last mod time for local records
-	localLastMod, err := p.modfn(p.ctx)
+	localLastMod, err := p.opt.LastModCheck(p.ctx)
 	if err != nil {
 		return nil, err
 	}
 	if localLastMod.IsZero() {
-		return &IncrementalProducerPush{IncrementalProducer: p}, nil
+		return &ProducerPush{ProducerState: p.ProducerState}, nil
 	}
 
 	// fetch manifest from remote
@@ -211,12 +168,11 @@ func (p *IncrementalProducer) push() (*IncrementalProducerPush, error) {
 	// compare manifest LastModified to local last mod.
 	remoteLastMod := manifest.LastModified
 	if remoteLastMod == timestampFromTime(localLastMod) {
-		return &IncrementalProducerPush{IncrementalProducer: p}, nil
+		return &ProducerPush{ProducerState: p.ProducerState}, nil
 	}
 
-	// TODO! should the meta LastMod be the file modified time or the local record last updated time?
 	wopt := p.opt.WriterOptions
-	wopt.LastMod = start
+	wopt.LastMod = localLastMod
 
 	// write modified data
 	// TODO! set the file extension from WriterOpts format & compression
@@ -233,15 +189,15 @@ func (p *IncrementalProducer) push() (*IncrementalProducerPush, error) {
 
 	atomic.StoreInt64(&p.numWritten, int64(numWritten))
 	atomic.StoreInt64(&p.lastMod, timestampFromTime(wopt.LastMod).Millis())
-	return &IncrementalProducerPush{IncrementalProducer: p, Updated: true}, nil
+	return &ProducerPush{ProducerState: p.ProducerState, Updated: true}, nil
 }
 
 func (p *IncrementalProducer) writeData(manifest *Manifest, fname string, remoteLastMod time.Time, wopt *WriterOptions) (int, error) {
 	writer := NewWriter(p.ctx, bfs.NewObjectFromBucket(p.bucket, fname), wopt)
 	defer writer.Discard()
 
-	// write all records since current manifest last mod time
-	if err := p.pfn(writer, remoteLastMod); err != nil {
+	// write data file, it is up to caller to ensure these are incremental changes
+	if err := p.pfn(writer); err != nil {
 		return 0, err
 	}
 	if err := writer.Commit(); err != nil {
