@@ -59,11 +59,10 @@ var _ = Describe("IncrementalProducer", func() {
 		Expect(subject.NumWritten()).To(Equal(10))
 		Expect(subject.Close()).To(Succeed())
 
-		manifest, err := feedx.LoadManifest(ctx, bfs.NewObjectFromBucket(bucket, "manifest.json"))
-		Expect(err).NotTo(HaveOccurred())
-
-		Expect(manifest.LastModified).To(Equal(feedx.TimestampFromTime(lastMod)))
-		Expect(manifest.Files).To(Equal([]string{"data-0-20230405-152344123.pbz"}))
+		Expect(feedx.LoadManifest(ctx, bfs.NewObjectFromBucket(bucket, "manifest.json"))).To(Equal(&feedx.Manifest{
+			LastModified: feedx.TimestampFromTime(lastMod),
+			Files:        []string{"data-0-20230405-152344123.pbz"},
+		}))
 
 		info, err := bucket.Head(ctx, "data-0-20230405-152344123.pbz")
 		Expect(err).NotTo(HaveOccurred())
