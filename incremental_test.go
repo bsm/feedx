@@ -72,4 +72,25 @@ var _ = Describe("IncrementalProducer", func() {
 		Expect(err).NotTo(HaveOccurred())
 		Expect(time.UnixMilli(metaLastMod)).To(BeTemporally("~", lastMod, time.Second))
 	})
+
+	It("only produces if data changed", func() {
+		lastMod := time.Date(2023, 4, 5, 15, 23, 44, 123444444, time.UTC)
+		obj := bfs.NewObjectFromBucket(bucket, "manifest.json")
+
+		// write manifest to remote
+		manifest, err := feedx.LoadManifest(ctx, obj)
+		Expect(err).NotTo(HaveOccurred())
+		manifest.LastModified = feedx.TimestampFromTime(lastMod)
+		Expect(manifest.Commit(ctx, obj, &feedx.WriterOptions{LastMod: lastMod})).To(Succeed())
+
+		// run producer cycle with unchanged last mod date
+		setup(lastMod, nil)
+		Expect(subject.NumWritten()).To(Equal(0))
+		Expect(subject.Close()).To(Succeed())
+
+		// run producer cycle after bumping last mod date
+		setup(lastMod.Add(time.Hour), nil)
+		Expect(subject.NumWritten()).To(Equal(10))
+		Expect(subject.Close()).To(Succeed())
+	})
 })
