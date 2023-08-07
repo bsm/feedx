@@ -48,7 +48,6 @@ func (m *Manifest) WriteDataFile(ctx context.Context, bucket bfs.Bucket, wopt *W
 	writer := NewWriter(ctx, bfs.NewObjectFromBucket(bucket, fname), wopt)
 	defer writer.Discard()
 
-	// write data file, it is up to caller to ensure these are incremental changes
 	if err := pfn(writer); err != nil {
 		return 0, err
 	}
