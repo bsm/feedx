@@ -24,15 +24,17 @@ var _ = Describe("IncrementalProducer", func() {
 		lastMod := func(_ context.Context) (time.Time, error) {
 			return modTime, nil
 		}
-		subject, err = feedx.NewIncrementalProducerForBucket(ctx, bucket, o, lastMod, func(w *feedx.Writer) error {
-			atomic.AddUint32(&numRuns, 1)
+		subject, err = feedx.NewIncrementalProducerForBucket(ctx, bucket, o, lastMod, func(_ time.Time) feedx.ProduceFunc {
+			return func(w *feedx.Writer) error {
+				atomic.AddUint32(&numRuns, 1)
 
-			for i := 0; i < 10; i++ {
-				if err := w.Encode(seed()); err != nil {
-					return err
+				for i := 0; i < 10; i++ {
+					if err := w.Encode(seed()); err != nil {
+						return err
+					}
 				}
+				return nil
 			}
-			return nil
 		})
 		Expect(err).NotTo(HaveOccurred())
 	}
@@ -57,15 +59,13 @@ var _ = Describe("IncrementalProducer", func() {
 		Expect(subject.NumWritten()).To(Equal(10))
 		Expect(subject.Close()).To(Succeed())
 
-		manifest, err := subject.LoadManifest()
+		manifest, err := feedx.LoadManifest(ctx, bfs.NewObjectFromBucket(bucket, "manifest.json"))
 		Expect(err).NotTo(HaveOccurred())
 
-		Expect(manifest).To(Equal(&feedx.Manifest{
-			LastModified: feedx.TimestampFromTime(lastMod),
-			Files:        []string{"data-0-2023-04-05-15:23:44.1234.pbz"},
-		}))
+		Expect(manifest.LastModified).To(Equal(feedx.TimestampFromTime(lastMod)))
+		Expect(manifest.Files).To(Equal([]string{"data-0-20230405-152344123.pbz"}))
 
-		info, err := bucket.Head(ctx, "data-0-2023-04-05-15:23:44.1234.pbz")
+		info, err := bucket.Head(ctx, "data-0-20230405-152344123.pbz")
 		Expect(err).NotTo(HaveOccurred())
 		Expect(info.Size).To(BeNumerically("~", 35, 10))
 

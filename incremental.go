@@ -2,38 +2,30 @@ package feedx
 
 import (
 	"context"
-	"errors"
-	"strconv"
 	"sync/atomic"
 	"time"
 
 	"github.com/bsm/bfs"
 )
 
-// Manifest describes the current feed status.
-// the current manifest is consumed before each push and a new manifest written after each push.
-type Manifest struct {
-	// LastModified holds a last-modified time of the records included in Files.
-	LastModified timestamp `json:"lastModified"`
-	// Generation is a incrementing counter for use in file compaction.
-	Generation int `json:"generation"`
-	// Files holds a set of incremental data files
-	Files []string `json:"files"`
-}
+// IncrmentalProduceFunc returns a ProduceFunc closure around an incremental mod time
+type IncrementalProduceFunc func(time.Time) ProduceFunc
 
 // IncrementalProducer produces a continuous incremental feed.
 type IncrementalProducer struct {
 	*ProducerState
 
 	bucket    bfs.Bucket
+	manifest  *bfs.Object
 	ownBucket bool
 	opt       IncrementalProducerOptions
 
 	ctx  context.Context
 	stop context.CancelFunc
-	pfn  ProduceFunc
+	ipfn IncrementalProduceFunc
 }
 
+// IncrementalProducerOptions configure the producer instance.
 type IncrementalProducerOptions ProducerOptions
 
 func (o *IncrementalProducerOptions) norm(lmfn LastModFunc) {
@@ -50,13 +42,13 @@ func (o *IncrementalProducerOptions) norm(lmfn LastModFunc) {
 }
 
 // NewIncrementalProducer inits a new incremental feed producer.
-func NewIncrementalProducer(ctx context.Context, bucketURL string, opt *IncrementalProducerOptions, lmfn LastModFunc, pfn ProduceFunc) (*IncrementalProducer, error) {
+func NewIncrementalProducer(ctx context.Context, bucketURL string, opt *IncrementalProducerOptions, lmfn LastModFunc, ipfn IncrementalProduceFunc) (*IncrementalProducer, error) {
 	bucket, err := bfs.Connect(ctx, bucketURL)
 	if err != nil {
 		return nil, err
 	}
 
-	p, err := NewIncrementalProducerForBucket(ctx, bucket, opt, lmfn, pfn)
+	p, err := NewIncrementalProducerForBucket(ctx, bucket, opt, lmfn, ipfn)
 	if err != nil {
 		_ = bucket.Close()
 		return nil, err
@@ -67,7 +59,7 @@ func NewIncrementalProducer(ctx context.Context, bucketURL string, opt *Incremen
 }
 
 // NewIncrmentalProducerForRemote starts a new incremental feed producer for a bucket.
-func NewIncrementalProducerForBucket(ctx context.Context, bucket bfs.Bucket, opt *IncrementalProducerOptions, lmfn LastModFunc, pfn ProduceFunc) (*IncrementalProducer, error) {
+func NewIncrementalProducerForBucket(ctx context.Context, bucket bfs.Bucket, opt *IncrementalProducerOptions, lmfn LastModFunc, ipfn IncrementalProduceFunc) (*IncrementalProducer, error) {
 	var o IncrementalProducerOptions
 	if opt != nil {
 		o = *opt
@@ -77,10 +69,11 @@ func NewIncrementalProducerForBucket(ctx context.Context, bucket bfs.Bucket, opt
 	ctx, stop := context.WithCancel(ctx)
 	p := &IncrementalProducer{
 		bucket:        bucket,
+		manifest:      bfs.NewObjectFromBucket(bucket, "manifest.json"),
 		ctx:           ctx,
 		stop:          stop,
 		opt:           o,
-		pfn:           pfn,
+		ipfn:          ipfn,
 		ProducerState: new(ProducerState),
 	}
 
@@ -103,30 +96,7 @@ func (p *IncrementalProducer) Close() error {
 	if p.ownBucket {
 		return p.bucket.Close()
 	}
-	return nil
-}
-
-func (p *IncrementalProducer) loadManifest() (*Manifest, error) {
-	remote := bfs.NewObjectFromBucket(p.bucket, "manifest.json")
-	defer remote.Close()
-
-	m := new(Manifest)
-
-	r, err := NewReader(p.ctx, remote, nil)
-	if errors.Is(err, bfs.ErrNotFound) {
-		return m, nil
-	} else if err != nil {
-		return nil, err
-	}
-	defer r.Close()
-
-	if err := r.Decode(m); errors.Is(err, bfs.ErrNotFound) { // some BFS implementations defer Open-ing the S3 object till first Decode call
-		return m, nil
-	} else if err != nil {
-		return nil, err
-	}
-
-	return m, nil
+	return p.manifest.Close()
 }
 
 func (p *IncrementalProducer) loop() {
@@ -160,7 +130,7 @@ func (p *IncrementalProducer) push() (*ProducerPush, error) {
 	}
 
 	// fetch manifest from remote
-	manifest, err := p.loadManifest()
+	manifest, err := LoadManifest(p.ctx, p.manifest)
 	if err != nil {
 		return nil, err
 	}
@@ -174,50 +144,17 @@ func (p *IncrementalProducer) push() (*ProducerPush, error) {
 	wopt := p.opt.WriterOptions
 	wopt.LastMod = localLastMod
 
-	// write modified data
-	// TODO! set the file extension from WriterOpts format & compression
-	fname := "data-" + strconv.Itoa(manifest.Generation) + "-" + localLastMod.Format("2006-01-02-15:04:05.0000") + ".pbz"
-	numWritten, err := p.writeData(manifest, fname, remoteLastMod.Time(), &wopt)
+	// write data modified since last remote mod
+	numWritten, err := manifest.WriteDataFile(p.ctx, p.bucket, &wopt, p.ipfn(remoteLastMod.Time()))
 	if err != nil {
 		return nil, err
 	}
-
-	// write new manifest
-	if err := p.writeManifest(manifest, fname, localLastMod, &WriterOptions{LastMod: wopt.LastMod}); err != nil {
+	// write new manifest to remote
+	if err := manifest.Commit(p.ctx, p.manifest, &WriterOptions{LastMod: wopt.LastMod}); err != nil {
 		return nil, err
 	}
 
 	atomic.StoreInt64(&p.numWritten, int64(numWritten))
 	atomic.StoreInt64(&p.lastMod, timestampFromTime(wopt.LastMod).Millis())
 	return &ProducerPush{ProducerState: p.ProducerState, Updated: true}, nil
-}
-
-func (p *IncrementalProducer) writeData(manifest *Manifest, fname string, remoteLastMod time.Time, wopt *WriterOptions) (int, error) {
-	writer := NewWriter(p.ctx, bfs.NewObjectFromBucket(p.bucket, fname), wopt)
-	defer writer.Discard()
-
-	// write data file, it is up to caller to ensure these are incremental changes
-	if err := p.pfn(writer); err != nil {
-		return 0, err
-	}
-	if err := writer.Commit(); err != nil {
-		return 0, err
-	}
-	return writer.NumWritten(), nil
-}
-
-func (p *IncrementalProducer) writeManifest(manifest *Manifest, fname string, lastMod time.Time, wopt *WriterOptions) error {
-	manifest.Files = append(manifest.Files, fname)
-	manifest.LastModified = timestampFromTime(lastMod)
-
-	name := "manifest.json"
-	wopt.norm(name) // norm sets writer format and compression from name
-
-	writer := NewWriter(p.ctx, bfs.NewObjectFromBucket(p.bucket, name), wopt)
-	defer writer.Discard()
-
-	if err := writer.Encode(manifest); err != nil {
-		return err
-	}
-	return writer.Commit()
 }

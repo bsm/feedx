@@ -28,6 +28,18 @@ func DetectCompression(name string) Compression {
 	return NoCompression
 }
 
+// CompressionSuffix returns file extension suffix for a compression type
+func CompressionSuffix(c Compression) string {
+	switch c {
+	case GZipCompression:
+		return "z"
+	case FlateCompression:
+		return ".flate"
+	default:
+		return ""
+	}
+}
+
 // --------------------------------------------------------------------
 
 // NoCompression is just a pass-through without compression.
