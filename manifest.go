@@ -9,14 +9,14 @@ import (
 	"github.com/bsm/bfs"
 )
 
-// Manifest holds the current incremental feed status.
+// Manifest holds the current feed status.
 // the current manifest is consumed before each push and a new manifest written after each push.
 type Manifest struct {
 	// LastModified holds a last-modified time of the records included in Files.
 	LastModified timestamp `json:"lastModified"`
 	// Generation is a incrementing counter for use in file compaction.
 	Generation int `json:"generation"`
-	// Files holds a set of incremental data files
+	// Files holds a set of data files
 	Files []string `json:"files"`
 }
 
