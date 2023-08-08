@@ -13,7 +13,7 @@ import (
 )
 
 var _ = Describe("IncrementalProducer", func() {
-	var subject *feedx.IncrementalProducer
+	var subject feedx.Producer
 	var bucket bfs.Bucket
 	var numRuns uint32
 	var ctx = context.Background()
