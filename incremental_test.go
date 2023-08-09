@@ -18,7 +18,7 @@ var _ = Describe("IncrementalProducer", func() {
 	var numRuns uint32
 	var ctx = context.Background()
 
-	setup := func(modTime time.Time, o *feedx.IncrementalProducerOptions) {
+	setup := func(modTime time.Time, o *feedx.ProducerOptions) {
 		var err error
 
 		lastMod := func(_ context.Context) (time.Time, error) {
@@ -51,7 +51,7 @@ var _ = Describe("IncrementalProducer", func() {
 	})
 
 	It("produces", func() {
-		lastMod := time.Date(2023, 4, 5, 15, 23, 44, 123444444, time.UTC)
+		lastMod := mockTime
 		setup(lastMod, nil)
 
 		Expect(subject.LastPush()).To(BeTemporally("~", time.Now(), time.Second))
@@ -61,10 +61,10 @@ var _ = Describe("IncrementalProducer", func() {
 
 		Expect(feedx.LoadManifest(ctx, bfs.NewObjectFromBucket(bucket, "manifest.json"))).To(Equal(&feedx.Manifest{
 			LastModified: feedx.TimestampFromTime(lastMod),
-			Files:        []string{"data-0-20230405-152344123.pbz"},
+			Files:        []string{"data-0-20180105-112515123.pbz"},
 		}))
 
-		info, err := bucket.Head(ctx, "data-0-20230405-152344123.pbz")
+		info, err := bucket.Head(ctx, "data-0-20180105-112515123.pbz")
 		Expect(err).NotTo(HaveOccurred())
 		Expect(info.Size).To(BeNumerically("~", 35, 10))
 

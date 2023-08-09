@@ -18,17 +18,16 @@ type incrementalProducer struct {
 	bucket    bfs.Bucket
 	manifest  *bfs.Object
 	ownBucket bool
-	opt       IncrementalProducerOptions
+	opt       incrementalProducerOptions
 
 	ctx  context.Context
 	stop context.CancelFunc
 	ipfn IncrementalProduceFunc
 }
 
-// IncrementalProducerOptions configure the producer instance.
-type IncrementalProducerOptions ProducerOptions
+type incrementalProducerOptions ProducerOptions
 
-func (o *IncrementalProducerOptions) norm(lmfn LastModFunc) {
+func (o *incrementalProducerOptions) norm(lmfn LastModFunc) {
 	if o.Compression == nil {
 		o.Compression = GZipCompression
 	}
@@ -42,7 +41,7 @@ func (o *IncrementalProducerOptions) norm(lmfn LastModFunc) {
 }
 
 // NewIncrementalProducer inits a new incremental feed producer.
-func NewIncrementalProducer(ctx context.Context, bucketURL string, opt *IncrementalProducerOptions, lmfn LastModFunc, ipfn IncrementalProduceFunc) (Producer, error) {
+func NewIncrementalProducer(ctx context.Context, bucketURL string, opt *ProducerOptions, lmfn LastModFunc, ipfn IncrementalProduceFunc) (Producer, error) {
 	bucket, err := bfs.Connect(ctx, bucketURL)
 	if err != nil {
 		return nil, err
@@ -59,10 +58,10 @@ func NewIncrementalProducer(ctx context.Context, bucketURL string, opt *Incremen
 }
 
 // NewIncrmentalProducerForRemote starts a new incremental feed producer for a bucket.
-func NewIncrementalProducerForBucket(ctx context.Context, bucket bfs.Bucket, opt *IncrementalProducerOptions, lmfn LastModFunc, ipfn IncrementalProduceFunc) (Producer, error) {
-	var o IncrementalProducerOptions
+func NewIncrementalProducerForBucket(ctx context.Context, bucket bfs.Bucket, opt *ProducerOptions, lmfn LastModFunc, ipfn IncrementalProduceFunc) (Producer, error) {
+	var o incrementalProducerOptions
 	if opt != nil {
-		o = *opt
+		o = incrementalProducerOptions(*opt)
 	}
 	o.norm(lmfn)
 
