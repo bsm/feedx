@@ -41,7 +41,7 @@ func loadManifest(ctx context.Context, obj *bfs.Object) (*manifest, error) {
 }
 
 // WriteDataFile pushes a new data file to bucket
-func (m *manifest) writeDataFile(ctx context.Context, bucket bfs.Bucket, wopt *WriterOptions, pfn ProduceFunc) (int, error) {
+func (m *manifest) WriteDataFile(ctx context.Context, bucket bfs.Bucket, wopt *WriterOptions, pfn ProduceFunc) (int, error) {
 	fname := m.generateFileName(wopt)
 
 	writer := NewWriter(ctx, bfs.NewObjectFromBucket(bucket, fname), wopt)
@@ -61,7 +61,7 @@ func (m *manifest) writeDataFile(ctx context.Context, bucket bfs.Bucket, wopt *W
 }
 
 // Commit writes manifest to remote object
-func (m *manifest) commit(ctx context.Context, obj *bfs.Object, wopt *WriterOptions) error {
+func (m *manifest) Commit(ctx context.Context, obj *bfs.Object, wopt *WriterOptions) error {
 	name := obj.Name()
 	wopt.norm(name) // norm sets writer format and compression from name
 

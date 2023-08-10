@@ -146,12 +146,12 @@ func (p *IncrementalProducer) push() (*ProducerPush, error) {
 	wopt.LastMod = localLastMod
 
 	// write data modified since last remote mod
-	numWritten, err := manifest.writeDataFile(p.ctx, p.bucket, &wopt, p.ipfn(remoteLastMod.Time()))
+	numWritten, err := manifest.WriteDataFile(p.ctx, p.bucket, &wopt, p.ipfn(remoteLastMod.Time()))
 	if err != nil {
 		return nil, err
 	}
 	// write new manifest to remote
-	if err := manifest.commit(p.ctx, p.manifest, &WriterOptions{LastMod: wopt.LastMod}); err != nil {
+	if err := manifest.Commit(p.ctx, p.manifest, &WriterOptions{LastMod: wopt.LastMod}); err != nil {
 		return nil, err
 	}
 
