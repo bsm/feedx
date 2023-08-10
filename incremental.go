@@ -59,7 +59,7 @@ func NewIncrementalProducer(ctx context.Context, bucketURL string, opt *Incremen
 	return p, nil
 }
 
-// NewIncrmentalProducerForRemote starts a new incremental feed producer for a bucket.
+// NewIncrementalProducerForRemote starts a new incremental feed producer for a bucket.
 func NewIncrementalProducerForBucket(ctx context.Context, bucket bfs.Bucket, opt *IncrementalProducerOptions, lmfn LastModFunc, ipfn IncrementalProduceFunc) (*IncrementalProducer, error) {
 	var o IncrementalProducerOptions
 	if opt != nil {
@@ -146,16 +146,48 @@ func (p *IncrementalProducer) push() (*ProducerPush, error) {
 	wopt.LastMod = localLastMod
 
 	// write data modified since last remote mod
-	numWritten, err := manifest.WriteDataFile(p.ctx, p.bucket, &wopt, p.ipfn(remoteLastMod.Time()))
+	numWritten, err := p.writeDataFile(manifest, &wopt)
 	if err != nil {
 		return nil, err
 	}
 	// write new manifest to remote
-	if err := manifest.Commit(p.ctx, p.manifest, &WriterOptions{LastMod: wopt.LastMod}); err != nil {
+	if err := p.commitManifest(manifest, &WriterOptions{LastMod: wopt.LastMod}); err != nil {
 		return nil, err
 	}
 
 	atomic.StoreInt64(&p.numWritten, int64(numWritten))
 	atomic.StoreInt64(&p.lastMod, timestampFromTime(wopt.LastMod).Millis())
 	return &ProducerPush{ProducerState: p.ProducerState, Updated: true}, nil
+}
+
+func (p *IncrementalProducer) writeDataFile(m *manifest, wopt *WriterOptions) (int, error) {
+	fname := m.newDataFileName(wopt)
+
+	writer := NewWriter(p.ctx, bfs.NewObjectFromBucket(p.bucket, fname), wopt)
+	defer writer.Discard()
+
+	if err := p.ipfn(wopt.LastMod)(writer); err != nil {
+		return 0, err
+	}
+	if err := writer.Commit(); err != nil {
+		return 0, err
+	}
+
+	m.Files = append(m.Files, fname)
+	m.LastModified = timestampFromTime(wopt.LastMod)
+
+	return writer.NumWritten(), nil
+}
+
+func (p *IncrementalProducer) commitManifest(m *manifest, wopt *WriterOptions) error {
+	name := p.manifest.Name()
+	wopt.norm(name) // norm sets writer format and compression from name
+
+	writer := NewWriter(p.ctx, p.manifest, wopt)
+	defer writer.Discard()
+
+	if err := writer.Encode(m); err != nil {
+		return err
+	}
+	return writer.Commit()
 }

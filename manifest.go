@@ -40,41 +40,7 @@ func loadManifest(ctx context.Context, obj *bfs.Object) (*manifest, error) {
 	return m, nil
 }
 
-// WriteDataFile pushes a new data file to bucket
-func (m *manifest) WriteDataFile(ctx context.Context, bucket bfs.Bucket, wopt *WriterOptions, pfn ProduceFunc) (int, error) {
-	fname := m.generateFileName(wopt)
-
-	writer := NewWriter(ctx, bfs.NewObjectFromBucket(bucket, fname), wopt)
-	defer writer.Discard()
-
-	if err := pfn(writer); err != nil {
-		return 0, err
-	}
-	if err := writer.Commit(); err != nil {
-		return 0, err
-	}
-
-	m.Files = append(m.Files, fname)
-	m.LastModified = timestampFromTime(wopt.LastMod)
-
-	return writer.NumWritten(), nil
-}
-
-// Commit writes manifest to remote object
-func (m *manifest) Commit(ctx context.Context, obj *bfs.Object, wopt *WriterOptions) error {
-	name := obj.Name()
-	wopt.norm(name) // norm sets writer format and compression from name
-
-	writer := NewWriter(ctx, obj, wopt)
-	defer writer.Discard()
-
-	if err := writer.Encode(m); err != nil {
-		return err
-	}
-	return writer.Commit()
-}
-
-func (m *manifest) generateFileName(wopt *WriterOptions) string {
+func (m *manifest) newDataFileName(wopt *WriterOptions) string {
 	ts := strings.ReplaceAll(wopt.LastMod.Format("20060102-150405.000"), ".", "")
 
 	formatExt := ".pb"
