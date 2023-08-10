@@ -12,7 +12,7 @@ import (
 )
 
 var _ = Describe("Producer", func() {
-	var subject feedx.Producer
+	var subject *feedx.Producer
 	var obj *bfs.Object
 	var numRuns uint32
 	var ctx = context.Background()

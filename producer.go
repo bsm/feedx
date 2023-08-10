@@ -8,14 +8,6 @@ import (
 	"github.com/bsm/bfs"
 )
 
-// Producer (continously) produces a feed.
-type Producer interface {
-	ProducerState
-
-	// Close stops the producer.
-	Close() error
-}
-
 // ProduceFunc is a callback which is run by the producer on every iteration.
 type ProduceFunc func(*Writer) error
 
@@ -23,32 +15,22 @@ type ProduceFunc func(*Writer) error
 type LastModFunc func(context.Context) (time.Time, error)
 
 // ProducerState holds current state of producer
-type ProducerState interface {
-	// LastPush returns time of last push attempt.
-	LastPush() time.Time
-	// LastModified returns time at which the remote feed was last modified.
-	LastModified() time.Time
-	// NumWritten returns the number of values produced during the last push.
-	NumWritten() int
-}
-
-// producerState holds current state of producer
-type producerState struct {
+type ProducerState struct {
 	numWritten, lastPush, lastMod int64
 }
 
 // LastPush implements ProducerState
-func (p *producerState) LastPush() time.Time {
+func (p *ProducerState) LastPush() time.Time {
 	return timestamp(atomic.LoadInt64(&p.lastPush)).Time()
 }
 
 // LastModified implements ProducerState
-func (p *producerState) LastModified() time.Time {
+func (p *ProducerState) LastModified() time.Time {
 	return timestamp(atomic.LoadInt64(&p.lastMod)).Time()
 }
 
 // NumWritten implements ProducerState
-func (p *producerState) NumWritten() int {
+func (p *ProducerState) NumWritten() int {
 	return int(atomic.LoadInt64(&p.numWritten))
 }
 
@@ -79,13 +61,13 @@ func (o *ProducerOptions) norm(name string) {
 // ProducerPush contains the state of the last push.
 type ProducerPush struct {
 	// Producer exposes the current producer state.
-	ProducerState
+	*ProducerState
 	// Updated indicates is the push resulted in an update.
 	Updated bool
 }
 
-type producer struct {
-	*producerState
+type Producer struct {
+	*ProducerState
 
 	remote    *bfs.Object
 	ownRemote bool
@@ -97,7 +79,7 @@ type producer struct {
 }
 
 // NewProducer inits a new feed producer.
-func NewProducer(ctx context.Context, remoteURL string, opt *ProducerOptions, pfn ProduceFunc) (Producer, error) {
+func NewProducer(ctx context.Context, remoteURL string, opt *ProducerOptions, pfn ProduceFunc) (*Producer, error) {
 	remote, err := bfs.NewObject(ctx, remoteURL)
 	if err != nil {
 		return nil, err
@@ -108,12 +90,12 @@ func NewProducer(ctx context.Context, remoteURL string, opt *ProducerOptions, pf
 		_ = remote.Close()
 		return nil, err
 	}
-	p.(*producer).ownRemote = true
+	p.ownRemote = true
 	return p, nil
 }
 
 // NewProducerForRemote starts a new feed producer with a remote.
-func NewProducerForRemote(ctx context.Context, remote *bfs.Object, opt *ProducerOptions, pfn ProduceFunc) (Producer, error) {
+func NewProducerForRemote(ctx context.Context, remote *bfs.Object, opt *ProducerOptions, pfn ProduceFunc) (*Producer, error) {
 	var o ProducerOptions
 	if opt != nil {
 		o = *opt
@@ -121,13 +103,13 @@ func NewProducerForRemote(ctx context.Context, remote *bfs.Object, opt *Producer
 	o.norm(remote.Name())
 
 	ctx, stop := context.WithCancel(ctx)
-	p := &producer{
+	p := &Producer{
 		remote:        remote,
 		opt:           o,
 		pfn:           pfn,
 		ctx:           ctx,
 		stop:          stop,
-		producerState: new(producerState),
+		ProducerState: new(ProducerState),
 	}
 
 	// run initial push
@@ -143,7 +125,7 @@ func NewProducerForRemote(ctx context.Context, remote *bfs.Object, opt *Producer
 }
 
 // Close stops the producer.
-func (p *producer) Close() error {
+func (p *Producer) Close() error {
 	p.stop()
 	if p.ownRemote {
 		return p.remote.Close()
@@ -151,7 +133,7 @@ func (p *producer) Close() error {
 	return nil
 }
 
-func (p *producer) push() (*ProducerPush, error) {
+func (p *Producer) push() (*ProducerPush, error) {
 	start := time.Now()
 	atomic.StoreInt64(&p.lastPush, timestampFromTime(start).Millis())
 
@@ -170,7 +152,7 @@ func (p *producer) push() (*ProducerPush, error) {
 	if rts, err := remoteLastModified(p.ctx, p.remote); err != nil {
 		return nil, err
 	} else if rts == timestampFromTime(wopt.LastMod) {
-		return &ProducerPush{ProducerState: p}, nil
+		return &ProducerPush{ProducerState: p.ProducerState}, nil
 	}
 
 	writer := NewWriter(p.ctx, p.remote, &wopt)
@@ -187,12 +169,12 @@ func (p *producer) push() (*ProducerPush, error) {
 	atomic.StoreInt64(&p.numWritten, int64(writer.NumWritten()))
 	atomic.StoreInt64(&p.lastMod, timestampFromTime(wopt.LastMod).Millis())
 	return &ProducerPush{
-		ProducerState: p,
+		ProducerState: p.ProducerState,
 		Updated:       true,
 	}, nil
 }
 
-func (p *producer) loop() {
+func (p *Producer) loop() {
 	ticker := time.NewTicker(p.opt.Interval)
 	defer ticker.Stop()
 

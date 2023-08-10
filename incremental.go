@@ -12,22 +12,24 @@ import (
 type IncrementalProduceFunc func(time.Time) ProduceFunc
 
 // IncrementalProducer produces a continuous incremental feed.
-type incrementalProducer struct {
-	*producerState
+type IncrementalProducer struct {
+	*ProducerState
 
 	bucket    bfs.Bucket
 	manifest  *bfs.Object
 	ownBucket bool
-	opt       incrementalProducerOptions
+	opt       IncrementalProducerOptions
 
 	ctx  context.Context
 	stop context.CancelFunc
 	ipfn IncrementalProduceFunc
 }
 
-type incrementalProducerOptions ProducerOptions
+type IncrementalProducerOptions struct {
+	ProducerOptions
+}
 
-func (o *incrementalProducerOptions) norm(lmfn LastModFunc) {
+func (o *IncrementalProducerOptions) norm(lmfn LastModFunc) {
 	if o.Compression == nil {
 		o.Compression = GZipCompression
 	}
@@ -41,7 +43,7 @@ func (o *incrementalProducerOptions) norm(lmfn LastModFunc) {
 }
 
 // NewIncrementalProducer inits a new incremental feed producer.
-func NewIncrementalProducer(ctx context.Context, bucketURL string, opt *ProducerOptions, lmfn LastModFunc, ipfn IncrementalProduceFunc) (Producer, error) {
+func NewIncrementalProducer(ctx context.Context, bucketURL string, opt *IncrementalProducerOptions, lmfn LastModFunc, ipfn IncrementalProduceFunc) (*IncrementalProducer, error) {
 	bucket, err := bfs.Connect(ctx, bucketURL)
 	if err != nil {
 		return nil, err
@@ -52,28 +54,28 @@ func NewIncrementalProducer(ctx context.Context, bucketURL string, opt *Producer
 		_ = bucket.Close()
 		return nil, err
 	}
-	p.(*incrementalProducer).ownBucket = true
+	p.ownBucket = true
 
 	return p, nil
 }
 
 // NewIncrmentalProducerForRemote starts a new incremental feed producer for a bucket.
-func NewIncrementalProducerForBucket(ctx context.Context, bucket bfs.Bucket, opt *ProducerOptions, lmfn LastModFunc, ipfn IncrementalProduceFunc) (Producer, error) {
-	var o incrementalProducerOptions
+func NewIncrementalProducerForBucket(ctx context.Context, bucket bfs.Bucket, opt *IncrementalProducerOptions, lmfn LastModFunc, ipfn IncrementalProduceFunc) (*IncrementalProducer, error) {
+	var o IncrementalProducerOptions
 	if opt != nil {
-		o = incrementalProducerOptions(*opt)
+		o = IncrementalProducerOptions(*opt)
 	}
 	o.norm(lmfn)
 
 	ctx, stop := context.WithCancel(ctx)
-	p := &incrementalProducer{
+	p := &IncrementalProducer{
 		bucket:        bucket,
 		manifest:      bfs.NewObjectFromBucket(bucket, "manifest.json"),
 		ctx:           ctx,
 		stop:          stop,
 		opt:           o,
 		ipfn:          ipfn,
-		producerState: new(producerState),
+		ProducerState: new(ProducerState),
 	}
 
 	// run initial push
@@ -90,7 +92,7 @@ func NewIncrementalProducerForBucket(ctx context.Context, bucket bfs.Bucket, opt
 }
 
 // Close stops the producer.
-func (p *incrementalProducer) Close() error {
+func (p *IncrementalProducer) Close() error {
 	p.stop()
 	if p.ownBucket {
 		return p.bucket.Close()
@@ -98,7 +100,7 @@ func (p *incrementalProducer) Close() error {
 	return p.manifest.Close()
 }
 
-func (p *incrementalProducer) loop() {
+func (p *IncrementalProducer) loop() {
 	ticker := time.NewTicker(p.opt.Interval)
 	defer ticker.Stop()
 
@@ -115,7 +117,7 @@ func (p *incrementalProducer) loop() {
 	}
 }
 
-func (p *incrementalProducer) push() (*ProducerPush, error) {
+func (p *IncrementalProducer) push() (*ProducerPush, error) {
 	start := time.Now()
 	atomic.StoreInt64(&p.lastPush, timestampFromTime(start).Millis())
 
@@ -125,11 +127,11 @@ func (p *incrementalProducer) push() (*ProducerPush, error) {
 		return nil, err
 	}
 	if localLastMod.IsZero() {
-		return &ProducerPush{ProducerState: p}, nil
+		return &ProducerPush{ProducerState: p.ProducerState}, nil
 	}
 
 	// fetch manifest from remote
-	manifest, err := LoadManifest(p.ctx, p.manifest)
+	manifest, err := loadManifest(p.ctx, p.manifest)
 	if err != nil {
 		return nil, err
 	}
@@ -137,23 +139,23 @@ func (p *incrementalProducer) push() (*ProducerPush, error) {
 	// compare manifest LastModified to local last mod.
 	remoteLastMod := manifest.LastModified
 	if remoteLastMod == timestampFromTime(localLastMod) {
-		return &ProducerPush{ProducerState: p}, nil
+		return &ProducerPush{ProducerState: p.ProducerState}, nil
 	}
 
 	wopt := p.opt.WriterOptions
 	wopt.LastMod = localLastMod
 
 	// write data modified since last remote mod
-	numWritten, err := manifest.WriteDataFile(p.ctx, p.bucket, &wopt, p.ipfn(remoteLastMod.Time()))
+	numWritten, err := manifest.writeDataFile(p.ctx, p.bucket, &wopt, p.ipfn(remoteLastMod.Time()))
 	if err != nil {
 		return nil, err
 	}
 	// write new manifest to remote
-	if err := manifest.Commit(p.ctx, p.manifest, &WriterOptions{LastMod: wopt.LastMod}); err != nil {
+	if err := manifest.commit(p.ctx, p.manifest, &WriterOptions{LastMod: wopt.LastMod}); err != nil {
 		return nil, err
 	}
 
 	atomic.StoreInt64(&p.numWritten, int64(numWritten))
 	atomic.StoreInt64(&p.lastMod, timestampFromTime(wopt.LastMod).Millis())
-	return &ProducerPush{ProducerState: p, Updated: true}, nil
+	return &ProducerPush{ProducerState: p.ProducerState, Updated: true}, nil
 }

@@ -9,9 +9,9 @@ import (
 	"github.com/bsm/bfs"
 )
 
-// Manifest holds the current feed status.
+// manifest holds the current feed status.
 // the current manifest is consumed before each push and a new manifest written after each push.
-type Manifest struct {
+type manifest struct {
 	// LastModified holds a last-modified time of the records included in Files.
 	LastModified timestamp `json:"lastModified"`
 	// Generation is a incrementing counter for use in file compaction.
@@ -20,9 +20,8 @@ type Manifest struct {
 	Files []string `json:"files"`
 }
 
-// LoadManifest consumes the latest manifest from bucket
-func LoadManifest(ctx context.Context, obj *bfs.Object) (*Manifest, error) {
-	m := new(Manifest)
+func loadManifest(ctx context.Context, obj *bfs.Object) (*manifest, error) {
+	m := new(manifest)
 
 	r, err := NewReader(ctx, obj, nil)
 	if errors.Is(err, bfs.ErrNotFound) {
@@ -42,7 +41,7 @@ func LoadManifest(ctx context.Context, obj *bfs.Object) (*Manifest, error) {
 }
 
 // WriteDataFile pushes a new data file to bucket
-func (m *Manifest) WriteDataFile(ctx context.Context, bucket bfs.Bucket, wopt *WriterOptions, pfn ProduceFunc) (int, error) {
+func (m *manifest) writeDataFile(ctx context.Context, bucket bfs.Bucket, wopt *WriterOptions, pfn ProduceFunc) (int, error) {
 	fname := m.generateFileName(wopt)
 
 	writer := NewWriter(ctx, bfs.NewObjectFromBucket(bucket, fname), wopt)
@@ -62,7 +61,7 @@ func (m *Manifest) WriteDataFile(ctx context.Context, bucket bfs.Bucket, wopt *W
 }
 
 // Commit writes manifest to remote object
-func (m *Manifest) Commit(ctx context.Context, obj *bfs.Object, wopt *WriterOptions) error {
+func (m *manifest) commit(ctx context.Context, obj *bfs.Object, wopt *WriterOptions) error {
 	name := obj.Name()
 	wopt.norm(name) // norm sets writer format and compression from name
 
@@ -75,7 +74,7 @@ func (m *Manifest) Commit(ctx context.Context, obj *bfs.Object, wopt *WriterOpti
 	return writer.Commit()
 }
 
-func (m *Manifest) generateFileName(wopt *WriterOptions) string {
+func (m *manifest) generateFileName(wopt *WriterOptions) string {
 	ts := strings.ReplaceAll(wopt.LastMod.Format("20060102-150405.000"), ".", "")
 	return "data-" + strconv.Itoa(m.Generation) + "-" + ts + FormatExt(wopt.Format) + CompressionSuffix(wopt.Compression)
 }

@@ -13,18 +13,19 @@ import (
 )
 
 var _ = Describe("IncrementalProducer", func() {
-	var subject feedx.Producer
+	var subject *feedx.IncrementalProducer
 	var bucket bfs.Bucket
 	var numRuns uint32
 	var ctx = context.Background()
+	var lastMod = mockTime
 
-	setup := func(modTime time.Time, o *feedx.ProducerOptions) {
+	setup := func(modTime time.Time, o *feedx.IncrementalProducerOptions) {
 		var err error
 
-		lastMod := func(_ context.Context) (time.Time, error) {
+		lastModFunc := func(_ context.Context) (time.Time, error) {
 			return modTime, nil
 		}
-		subject, err = feedx.NewIncrementalProducerForBucket(ctx, bucket, o, lastMod, func(_ time.Time) feedx.ProduceFunc {
+		subject, err = feedx.NewIncrementalProducerForBucket(ctx, bucket, o, lastModFunc, func(_ time.Time) feedx.ProduceFunc {
 			return func(w *feedx.Writer) error {
 				atomic.AddUint32(&numRuns, 1)
 
@@ -51,7 +52,6 @@ var _ = Describe("IncrementalProducer", func() {
 	})
 
 	It("produces", func() {
-		lastMod := mockTime
 		setup(lastMod, nil)
 
 		Expect(subject.LastPush()).To(BeTemporally("~", time.Now(), time.Second))
@@ -74,14 +74,10 @@ var _ = Describe("IncrementalProducer", func() {
 	})
 
 	It("only produces if data changed", func() {
-		lastMod := time.Date(2023, 4, 5, 15, 23, 44, 123444444, time.UTC)
-		obj := bfs.NewObjectFromBucket(bucket, "manifest.json")
-
-		// write manifest to remote
-		manifest, err := feedx.LoadManifest(ctx, obj)
-		Expect(err).NotTo(HaveOccurred())
-		manifest.LastModified = feedx.TimestampFromTime(lastMod)
-		Expect(manifest.Commit(ctx, obj, &feedx.WriterOptions{LastMod: lastMod})).To(Succeed())
+		// run initial producer cycle
+		setup(lastMod, nil)
+		Expect(subject.NumWritten()).To(Equal(10))
+		Expect(subject.Close()).To(Succeed())
 
 		// run producer cycle with unchanged last mod date
 		setup(lastMod, nil)
