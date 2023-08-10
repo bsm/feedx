@@ -41,16 +41,6 @@ func DetectFormat(name string) Format {
 	return (*noFormat)(nil)
 }
 
-// FormatExt returns file extension for a format
-func FormatExt(format Format) string {
-	switch format {
-	case JSONFormat:
-		return ".json"
-	default:
-		return ".pb"
-	}
-}
-
 // FormatDecoder methods
 type FormatDecoder interface {
 	// Decode decodes the next message into an interface.

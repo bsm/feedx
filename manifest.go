@@ -76,5 +76,18 @@ func (m *manifest) commit(ctx context.Context, obj *bfs.Object, wopt *WriterOpti
 
 func (m *manifest) generateFileName(wopt *WriterOptions) string {
 	ts := strings.ReplaceAll(wopt.LastMod.Format("20060102-150405.000"), ".", "")
-	return "data-" + strconv.Itoa(m.Generation) + "-" + ts + FormatExt(wopt.Format) + CompressionSuffix(wopt.Compression)
+
+	formatExt := ".pb"
+	if wopt.Format == JSONFormat {
+		formatExt = ".json"
+	}
+
+	var compressionSuffix string
+	if wopt.Compression == GZipCompression {
+		compressionSuffix = "z"
+	} else if wopt.Compression == FlateCompression {
+		compressionSuffix = ".flate"
+	}
+
+	return "data-" + strconv.Itoa(m.Generation) + "-" + ts + formatExt + compressionSuffix
 }
