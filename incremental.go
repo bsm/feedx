@@ -12,7 +12,7 @@ type IncrementalProduceFunc func(time.Time) ProduceFunc
 
 // IncrementalProducer produces a continuous incremental feed.
 type IncrementalProducer struct {
-	*ProducerState
+	producerState
 
 	bucket    bfs.Bucket
 	manifest  *bfs.Object
@@ -69,13 +69,12 @@ func NewIncrementalProducerForBucket(ctx context.Context, bucket bfs.Bucket, opt
 
 	ctx, stop := context.WithCancel(ctx)
 	p := &IncrementalProducer{
-		bucket:        bucket,
-		manifest:      bfs.NewObjectFromBucket(bucket, "manifest.json"),
-		ctx:           ctx,
-		stop:          stop,
-		opt:           o,
-		ipfn:          ipfn,
-		ProducerState: new(ProducerState),
+		bucket:   bucket,
+		manifest: bfs.NewObjectFromBucket(bucket, "manifest.json"),
+		ctx:      ctx,
+		stop:     stop,
+		opt:      o,
+		ipfn:     ipfn,
 	}
 
 	// run initial push
@@ -94,11 +93,10 @@ func NewIncrementalProducerForBucket(ctx context.Context, bucket bfs.Bucket, opt
 // Close stops the producer.
 func (p *IncrementalProducer) Close() (err error) {
 	p.stop()
-	if p.manifest != nil {
-		if e := p.manifest.Close(); e != nil {
-			err = e
-		}
+	if e := p.manifest.Close(); e != nil {
+		err = e
 	}
+
 	if p.ownBucket {
 		if e := p.bucket.Close(); e != nil {
 			err = e
@@ -126,7 +124,7 @@ func (p *IncrementalProducer) loop() {
 
 func (p *IncrementalProducer) push() (*ProducerPush, error) {
 	start := time.Now()
-	p.ProducerState.updateLastPush(start)
+	p.producerState.updateLastPush(start)
 
 	// get last mod time for local records
 	localLastMod, err := p.opt.LastModCheck(p.ctx)
@@ -134,7 +132,7 @@ func (p *IncrementalProducer) push() (*ProducerPush, error) {
 		return nil, err
 	}
 	if localLastMod.IsZero() {
-		return &ProducerPush{ProducerState: p.ProducerState}, nil
+		return &ProducerPush{producerState: p.producerState}, nil
 	}
 
 	// fetch manifest from remote
@@ -146,7 +144,7 @@ func (p *IncrementalProducer) push() (*ProducerPush, error) {
 	// compare manifest LastModified to local last mod.
 	remoteLastMod := manifest.LastModified
 	if remoteLastMod == timestampFromTime(localLastMod) {
-		return &ProducerPush{ProducerState: p.ProducerState}, nil
+		return &ProducerPush{producerState: p.producerState}, nil
 	}
 
 	wopt := p.opt.WriterOptions
@@ -162,9 +160,9 @@ func (p *IncrementalProducer) push() (*ProducerPush, error) {
 		return nil, err
 	}
 
-	p.ProducerState.updateNumWritten(numWritten)
-	p.ProducerState.updateLastModified(wopt.LastMod)
-	return &ProducerPush{ProducerState: p.ProducerState, Updated: true}, nil
+	p.producerState.updateNumWritten(numWritten)
+	p.producerState.updateLastModified(wopt.LastMod)
+	return &ProducerPush{producerState: p.producerState, Updated: true}, nil
 }
 
 func (p *IncrementalProducer) writeDataFile(m *manifest, wopt *WriterOptions) (int, error) {
