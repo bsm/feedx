@@ -14,7 +14,7 @@ type ProduceFunc func(*Writer) error
 // LastModFunc is a function to return local data last modification time.
 type LastModFunc func(context.Context) (time.Time, error)
 
-// ProducerState holds current state of producer
+// ProducerState holds current state of producer.
 type ProducerState struct {
 	numWritten, lastPush, lastMod int64
 }
