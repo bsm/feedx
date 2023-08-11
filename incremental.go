@@ -2,13 +2,12 @@ package feedx
 
 import (
 	"context"
-	"sync/atomic"
 	"time"
 
 	"github.com/bsm/bfs"
 )
 
-// IncrmentalProduceFunc returns a ProduceFunc closure around an incremental mod time
+// IncrmentalProduceFunc returns a ProduceFunc closure around an incremental mod time.
 type IncrementalProduceFunc func(time.Time) ProduceFunc
 
 // IncrementalProducer produces a continuous incremental feed.
@@ -25,6 +24,7 @@ type IncrementalProducer struct {
 	ipfn IncrementalProduceFunc
 }
 
+// IncrementalProducerOptions configure the producer instance.
 type IncrementalProducerOptions struct {
 	ProducerOptions
 }
@@ -92,12 +92,19 @@ func NewIncrementalProducerForBucket(ctx context.Context, bucket bfs.Bucket, opt
 }
 
 // Close stops the producer.
-func (p *IncrementalProducer) Close() error {
+func (p *IncrementalProducer) Close() (err error) {
 	p.stop()
-	if p.ownBucket {
-		return p.bucket.Close()
+	if p.manifest != nil {
+		if e := p.manifest.Close(); e != nil {
+			err = e
+		}
 	}
-	return p.manifest.Close()
+	if p.ownBucket {
+		if e := p.bucket.Close(); e != nil {
+			err = e
+		}
+	}
+	return
 }
 
 func (p *IncrementalProducer) loop() {
@@ -119,7 +126,7 @@ func (p *IncrementalProducer) loop() {
 
 func (p *IncrementalProducer) push() (*ProducerPush, error) {
 	start := time.Now()
-	atomic.StoreInt64(&p.lastPush, timestampFromTime(start).Millis())
+	p.ProducerState.updateLastPush(start)
 
 	// get last mod time for local records
 	localLastMod, err := p.opt.LastModCheck(p.ctx)
@@ -155,8 +162,8 @@ func (p *IncrementalProducer) push() (*ProducerPush, error) {
 		return nil, err
 	}
 
-	atomic.StoreInt64(&p.numWritten, int64(numWritten))
-	atomic.StoreInt64(&p.lastMod, timestampFromTime(wopt.LastMod).Millis())
+	p.ProducerState.updateNumWritten(numWritten)
+	p.ProducerState.updateLastModified(wopt.LastMod)
 	return &ProducerPush{ProducerState: p.ProducerState, Updated: true}, nil
 }
 
