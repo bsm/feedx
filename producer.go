@@ -11,6 +11,40 @@ import (
 // ProduceFunc is a callback which is run by the producer on every iteration.
 type ProduceFunc func(*Writer) error
 
+// LastModFunc is a function to return local data last modification time.
+type LastModFunc func(context.Context) (time.Time, error)
+
+type producerState struct {
+	numWritten, lastPush, lastMod int64
+}
+
+// LastPush returns time of last push attempt.
+func (p *producerState) LastPush() time.Time {
+	return timestamp(atomic.LoadInt64(&p.lastPush)).Time()
+}
+
+// LastModified returns time at which the remote feed was last modified.
+func (p *producerState) LastModified() time.Time {
+	return timestamp(atomic.LoadInt64(&p.lastMod)).Time()
+}
+
+// NumWritten returns the number of values produced during the last push.
+func (p *producerState) NumWritten() int {
+	return int(atomic.LoadInt64(&p.numWritten))
+}
+
+func (p *producerState) updateLastPush(t time.Time) {
+	atomic.StoreInt64(&p.lastPush, timestampFromTime(t).Millis())
+}
+
+func (p *producerState) updateLastModified(t time.Time) {
+	atomic.StoreInt64(&p.lastMod, timestampFromTime(t).Millis())
+}
+
+func (p *producerState) updateNumWritten(n int) {
+	atomic.StoreInt64(&p.numWritten, int64(n))
+}
+
 // ProducerOptions configure the producer instance.
 type ProducerOptions struct {
 	WriterOptions
@@ -21,7 +55,7 @@ type ProducerOptions struct {
 
 	// LastModCheck this function will be called before each push attempt
 	// to dynamically determine the last modified time.
-	LastModCheck func(context.Context) (time.Time, error)
+	LastModCheck LastModFunc
 
 	// AfterPush callbacks are triggered after each push cycle, receiving
 	// the push state and error (if occurred).
@@ -38,13 +72,14 @@ func (o *ProducerOptions) norm(name string) {
 // ProducerPush contains the state of the last push.
 type ProducerPush struct {
 	// Producer exposes the current producer state.
-	*Producer
+	producerState
 	// Updated indicates is the push resulted in an update.
 	Updated bool
 }
 
-// Producer (continously) produces a feed.
 type Producer struct {
+	producerState
+
 	remote    *bfs.Object
 	ownRemote bool
 
@@ -52,8 +87,6 @@ type Producer struct {
 	ctx  context.Context
 	stop context.CancelFunc
 	pfn  ProduceFunc
-
-	numWritten, lastPush, lastMod int64
 }
 
 // NewProducer inits a new feed producer.
@@ -101,21 +134,6 @@ func NewProducerForRemote(ctx context.Context, remote *bfs.Object, opt *Producer
 	return p, nil
 }
 
-// LastPush returns time of last push attempt.
-func (p *Producer) LastPush() time.Time {
-	return timestamp(atomic.LoadInt64(&p.lastPush)).Time()
-}
-
-// LastModified returns time at which the remote feed was last modified.
-func (p *Producer) LastModified() time.Time {
-	return timestamp(atomic.LoadInt64(&p.lastMod)).Time()
-}
-
-// NumWritten returns the number of values produced during the last push.
-func (p *Producer) NumWritten() int {
-	return int(atomic.LoadInt64(&p.numWritten))
-}
-
 // Close stops the producer.
 func (p *Producer) Close() error {
 	p.stop()
@@ -127,7 +145,7 @@ func (p *Producer) Close() error {
 
 func (p *Producer) push() (*ProducerPush, error) {
 	start := time.Now()
-	atomic.StoreInt64(&p.lastPush, timestampFromTime(start).Millis())
+	p.producerState.updateLastPush(start)
 
 	// setup write options
 	wopt := p.opt.WriterOptions
@@ -144,7 +162,7 @@ func (p *Producer) push() (*ProducerPush, error) {
 	if rts, err := remoteLastModified(p.ctx, p.remote); err != nil {
 		return nil, err
 	} else if rts == timestampFromTime(wopt.LastMod) {
-		return &ProducerPush{Producer: p}, nil
+		return &ProducerPush{producerState: p.producerState}, nil
 	}
 
 	writer := NewWriter(p.ctx, p.remote, &wopt)
@@ -158,11 +176,12 @@ func (p *Producer) push() (*ProducerPush, error) {
 		return nil, err
 	}
 
-	atomic.StoreInt64(&p.numWritten, int64(writer.NumWritten()))
-	atomic.StoreInt64(&p.lastMod, timestampFromTime(wopt.LastMod).Millis())
+	p.producerState.updateNumWritten(writer.NumWritten())
+	p.producerState.updateLastModified(wopt.LastMod)
+
 	return &ProducerPush{
-		Producer: p,
-		Updated:  true,
+		producerState: p.producerState,
+		Updated:       true,
 	}, nil
 }
 
