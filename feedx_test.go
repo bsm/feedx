@@ -2,6 +2,7 @@ package feedx_test
 
 import (
 	"context"
+	"io"
 	"net/url"
 	"testing"
 	"time"
@@ -46,6 +47,22 @@ func writeMulti(obj *bfs.Object, numEntries int, lastMod time.Time) error {
 		}
 	}
 	return w.Commit()
+}
+
+// ------------------------------------------------------------------------
+
+func decode(r *feedx.Reader) []*testdata.MockMessage {
+	var msgs []*testdata.MockMessage
+	for {
+		var msg testdata.MockMessage
+		err := r.Decode(&msg)
+		if err == io.EOF {
+			break
+		}
+		Expect(err).NotTo(HaveOccurred())
+		msgs = append(msgs, &msg)
+	}
+	return msgs
 }
 
 // ------------------------------------------------------------------------

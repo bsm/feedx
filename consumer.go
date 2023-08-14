@@ -113,35 +113,59 @@ type consumer struct {
 	ctx  context.Context
 	stop context.CancelFunc
 
-	cfn  ConsumeFunc
-	data atomic.Value
+	cfn ConsumeFunc
 
+	consumerState
+}
+
+type consumerState struct {
+	data                                     atomic.Value
 	numRead, lastMod, lastSync, lastConsumed int64
 }
 
 // Data implements Consumer interface.
-func (c *consumer) Data() interface{} {
+func (c *consumerState) Data() interface{} {
 	return c.data.Load()
 }
 
 // NumRead implements Consumer interface.
-func (c *consumer) NumRead() int {
+func (c *consumerState) NumRead() int {
 	return int(atomic.LoadInt64(&c.numRead))
 }
 
 // LastSync implements Consumer interface.
-func (c *consumer) LastSync() time.Time {
+func (c *consumerState) LastSync() time.Time {
 	return timestamp(atomic.LoadInt64(&c.lastSync)).Time()
 }
 
 // LastConsumed implements Consumer interface.
-func (c *consumer) LastConsumed() time.Time {
+func (c *consumerState) LastConsumed() time.Time {
 	return timestamp(atomic.LoadInt64(&c.lastConsumed)).Time()
 }
 
 // LastModified implements Consumer interface.
-func (c *consumer) LastModified() time.Time {
+func (c *consumerState) LastModified() time.Time {
 	return timestamp(atomic.LoadInt64(&c.lastMod)).Time()
+}
+
+func (c *consumerState) updateNumRead(n int) {
+	atomic.StoreInt64(&c.numRead, int64(n))
+}
+
+func (c *consumerState) updateLastSync(t time.Time) {
+	atomic.StoreInt64(&c.lastSync, timestampFromTime(t).Millis())
+}
+
+func (c *consumerState) updateLastConsumed(t time.Time) {
+	atomic.StoreInt64(&c.lastConsumed, timestampFromTime(t).Millis())
+}
+
+func (c *consumerState) updateLastModified(t time.Time) {
+	atomic.StoreInt64(&c.lastMod, timestampFromTime(t).Millis())
+}
+
+func (c *consumerState) storeData(data interface{}) {
+	c.data.Store(data)
 }
 
 // Close implements Consumer interface.
@@ -154,9 +178,9 @@ func (c *consumer) Close() error {
 }
 
 func (c *consumer) sync(force bool) (*ConsumerSync, error) {
-	syncTime := timestampFromTime(time.Now()).Millis()
+	start := time.Now()
 	defer func() {
-		atomic.StoreInt64(&c.lastSync, syncTime)
+		c.consumerState.updateLastSync(start)
 	}()
 
 	// retrieve original last modified time
@@ -185,10 +209,10 @@ func (c *consumer) sync(force bool) (*ConsumerSync, error) {
 
 	// update stores
 	previous := c.data.Load()
-	c.data.Store(data)
-	atomic.StoreInt64(&c.numRead, int64(reader.NumRead()))
-	atomic.StoreInt64(&c.lastMod, lastMod.Millis())
-	atomic.StoreInt64(&c.lastConsumed, syncTime)
+	c.consumerState.storeData(data)
+	c.consumerState.updateNumRead(reader.NumRead())
+	c.consumerState.updateLastModified(lastMod.Time())
+	c.consumerState.updateLastConsumed(start)
 	return &ConsumerSync{
 		Consumer:     c,
 		Updated:      true,

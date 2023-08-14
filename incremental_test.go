@@ -8,6 +8,7 @@ import (
 
 	"github.com/bsm/bfs"
 	"github.com/bsm/feedx"
+	"github.com/bsm/feedx/internal/testdata"
 	. "github.com/bsm/ginkgo/v2"
 	. "github.com/bsm/gomega"
 )
@@ -88,5 +89,68 @@ var _ = Describe("IncrementalProducer", func() {
 		setup(lastMod.Add(time.Hour), nil)
 		Expect(subject.NumWritten()).To(Equal(10))
 		Expect(subject.Close()).To(Succeed())
+	})
+})
+
+var _ = Describe("IncrementalConsumer", func() {
+	var subject feedx.Consumer
+	var bucket bfs.Bucket
+	var ctx = context.Background()
+
+	consume := func(i *feedx.ReaderIter) (interface{}, error) {
+		var msgs []*testdata.MockMessage
+		for {
+			r, ok := i.Next()
+			if !ok {
+				break
+			}
+			msgs = append(msgs, decode(r)...)
+		}
+		return msgs, i.Err()
+	}
+
+	BeforeEach(func() {
+		bucket = bfs.NewInMem()
+		dataObj := bfs.NewObjectFromBucket(bucket, "data-0-20230501-120023123.jsonz")
+		Expect(writeMulti(dataObj, 2, mockTime)).To(Succeed())
+
+		manifest := &feedx.Manifest{
+			LastModified: feedx.TimestampFromTime(mockTime),
+			Files:        []string{dataObj.Name()},
+		}
+		writer := feedx.NewWriter(ctx, bfs.NewObjectFromBucket(bucket, "manifest.json"), &feedx.WriterOptions{LastMod: mockTime})
+		defer writer.Discard()
+
+		Expect(writer.Encode(manifest)).To(Succeed())
+		Expect(writer.Commit()).To(Succeed())
+
+		var err error
+		subject, err = feedx.NewIncrementalConsumerForBucket(ctx, bucket, nil, consume)
+		Expect(err).NotTo(HaveOccurred())
+	})
+
+	AfterEach(func() {
+		Expect(subject.Close()).To(Succeed())
+	})
+
+	It("syncs/retrieves feeds from remote", func() {
+		Expect(subject.LastSync()).To(BeTemporally("~", time.Now(), time.Second))
+		Expect(subject.LastConsumed()).To(BeTemporally("==", subject.LastSync()))
+		Expect(subject.LastModified()).To(BeTemporally("==", mockTime.Truncate(time.Millisecond)))
+		Expect(subject.NumRead()).To(Equal(2))
+		Expect(subject.Data()).To(ConsistOf(seed(), seed()))
+		Expect(subject.Close()).To(Succeed())
+	})
+
+	It("consumes feeds only if necessary", func() {
+		prevSync := subject.LastSync()
+		time.Sleep(2 * time.Millisecond)
+
+		testable := subject.(interface{ TestSync() error })
+		Expect(testable.TestSync()).To(Succeed())
+		Expect(subject.LastSync()).To(BeTemporally(">", prevSync))
+		Expect(subject.LastConsumed()).To(BeTemporally("==", prevSync)) // skipped on last sync
+		Expect(subject.LastModified()).To(BeTemporally("==", mockTime.Truncate(time.Millisecond)))
+		Expect(subject.NumRead()).To(Equal(2))
 	})
 })

@@ -137,3 +137,58 @@ func (r *Reader) ensureOpen() error {
 
 	return nil
 }
+
+// -----------------------------------------------------------------------------------------------
+
+// ReaderIter is a reader iterator.
+type ReaderIter struct {
+	remotes []*bfs.Object
+	opt     *ReaderOptions
+	ctx     context.Context
+	reader  *Reader
+
+	i   int
+	err error
+	num int
+}
+
+// NewReaderIter inits a ReaderIter.
+func NewReaderIter(ctx context.Context, remotes []*bfs.Object, opt *ReaderOptions) *ReaderIter {
+	return &ReaderIter{
+		remotes: remotes,
+		ctx:     ctx,
+		opt:     opt,
+		i:       -1,
+	}
+}
+
+// Next returns the next Reader in the iteration if there is one.
+// Once Next returns ok==false, the iteration is over,
+// and all subsequent calls will return ok==false.
+func (r *ReaderIter) Next() (*Reader, bool) {
+	if r.reader != nil {
+		r.num += r.reader.NumRead()
+	}
+
+	r.i++
+	ok := r.err == nil && r.i >= 0 && r.i < len(r.remotes)
+	if ok {
+		r.reader, r.err = NewReader(r.ctx, r.remotes[r.i], r.opt)
+		if r.err != nil {
+			return nil, false
+		}
+	} else {
+		r.reader = nil
+	}
+	return r.reader, ok
+}
+
+// Err returns any errors from prev iteration.
+func (r *ReaderIter) Err() error {
+	return r.err
+}
+
+// NumRead returns total number read values from prev iterations.
+func (r *ReaderIter) NumRead() int {
+	return r.num
+}

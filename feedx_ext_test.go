@@ -12,6 +12,11 @@ func (c *consumer) TestSync() error {
 	return err
 }
 
+func (c *incrementalConsumer) TestSync() error {
+	_, err := c.sync(false)
+	return err
+}
+
 func TimestampFromTime(t time.Time) timestamp {
 	return timestampFromTime(t)
 }
