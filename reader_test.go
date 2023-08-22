@@ -60,9 +60,7 @@ var _ = Describe("Reader", func() {
 			obj = bfs.NewInMemObject("path/to/file.json")
 			Expect(writeMulti(obj, 3, time.Time{})).To(Succeed())
 
-			var err error
-			subject, err = feedx.MultiReader(ctx, []*bfs.Object{obj, obj}, nil)
-			Expect(err).NotTo(HaveOccurred())
+			subject = feedx.MultiReader(ctx, []*bfs.Object{obj, obj}, nil)
 		})
 
 		AfterEach(func() {

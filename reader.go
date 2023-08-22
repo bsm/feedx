@@ -31,7 +31,7 @@ func (o *ReaderOptions) norm(name string) {
 // Reader reads data from a remote feed.
 type Reader struct {
 	ctx context.Context
-	opt *ReaderOptions
+	opt ReaderOptions
 
 	remotes  []*bfs.Object
 	cur      *streamReader
@@ -40,33 +40,38 @@ type Reader struct {
 
 // NewReader inits a new reader.
 func NewReader(ctx context.Context, remote *bfs.Object, opt *ReaderOptions) (*Reader, error) {
-	return &Reader{
-		remotes: []*bfs.Object{remote},
-		opt:     opt,
-		ctx:     ctx,
-	}, nil
+	return MultiReader(ctx, []*bfs.Object{remote}, opt), nil
 }
 
 // MultiReader inits a new reader for multiple remotes.  Remotes are read sequentially as if concatenated.
 // Once all remotes are fully read, Read will return EOF.
-func MultiReader(ctx context.Context, remotes []*bfs.Object, opt *ReaderOptions) (*Reader, error) {
+func MultiReader(ctx context.Context, remotes []*bfs.Object, opt *ReaderOptions) *Reader {
+	var o ReaderOptions
+	if opt != nil {
+		o = *opt
+	}
+	o.norm(remotes[0].Name())
+
 	return &Reader{
 		remotes: remotes,
-		opt:     opt,
+		opt:     o,
 		ctx:     ctx,
-	}, nil
+	}
 }
 
 // Read reads raw bytes from the feed.
 func (r *Reader) Read(p []byte) (int, error) {
-	if len(r.remotes) == 0 || r.pos >= len(r.remotes) {
+	if !r.ensureCurrent() {
 		return 0, io.EOF
 	}
 
-	r.ensureCurrent()
 	n, err := r.cur.Read(p)
 	if err == io.EOF {
-		r.cur = nil // remove current reader
+		// close and remove current reader
+		if err := r.cur.Close(); err != nil {
+			return n, err
+		}
+		r.cur = nil
 
 		// increment position and check if any more remotes
 		if r.pos++; r.pos < len(r.remotes) {
@@ -79,16 +84,19 @@ func (r *Reader) Read(p []byte) (int, error) {
 
 // Decode decodes the next formatted value from the feed.
 func (r *Reader) Decode(v interface{}) error {
-	if len(r.remotes) == 0 || r.pos >= len(r.remotes) {
+	if !r.ensureCurrent() {
 		return io.EOF
 	}
 
-	r.ensureCurrent()
 	err := r.cur.Decode(v)
 	if err == nil {
 		r.num++
 	} else if err == io.EOF {
-		r.cur = nil // remove current reader
+		// close and remove current reader
+		if err := r.cur.Close(); err != nil {
+			return err
+		}
+		r.cur = nil
 
 		// increment position and check if any more remotes
 		if r.pos++; r.pos < len(r.remotes) {
@@ -128,20 +136,17 @@ func (r *Reader) Close() error {
 	return nil
 }
 
-func (r *Reader) ensureCurrent() {
-	if len(r.remotes) > 0 && r.cur == nil {
-		remote := r.remotes[r.pos]
-		var o ReaderOptions
-		if r.opt != nil {
-			o = *r.opt
-		}
-		o.norm(remote.Name())
+func (r *Reader) ensureCurrent() bool {
+	if r.pos >= len(r.remotes) {
+		return false
+	} else if r.cur == nil {
 		r.cur = &streamReader{
-			remote: remote,
-			opt:    o,
+			remote: r.remotes[r.pos],
+			opt:    r.opt,
 			ctx:    r.ctx,
 		}
 	}
+	return true
 }
 
 type streamReader struct {
