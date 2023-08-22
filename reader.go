@@ -50,7 +50,9 @@ func MultiReader(ctx context.Context, remotes []*bfs.Object, opt *ReaderOptions)
 	if opt != nil {
 		o = *opt
 	}
-	o.norm(remotes[0].Name())
+	if len(remotes) > 0 {
+		o.norm(remotes[0].Name())
+	}
 
 	return &Reader{
 		remotes: remotes,
