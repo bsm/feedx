@@ -87,7 +87,7 @@ func (r *Reader) Read(p []byte) (int, error) {
 		}
 		r.cur = nil
 
-		// else increment position and check if any more remotes
+		// increment position and check if any more remotes
 		if r.pos++; r.pos < len(r.remotes) {
 			return r.Read(p) // start reading from next remote
 		}
