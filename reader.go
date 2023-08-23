@@ -48,6 +48,7 @@ func NewReader(ctx context.Context, remote *bfs.Object, opt *ReaderOptions) (*Re
 
 // MultiReader inits a new reader for multiple remotes.  Remotes are read sequentially as if concatenated.
 // Once all remotes are fully read, Read will return EOF.
+// MultiReader utilises a single format converter therefore all remotes must be same format.
 func MultiReader(ctx context.Context, remotes []*bfs.Object, opt *ReaderOptions) *Reader {
 	var o ReaderOptions
 	if opt != nil {
@@ -89,7 +90,8 @@ func (r *Reader) Read(p []byte) (int, error) {
 
 		// increment position and check if any more remotes
 		if r.pos++; r.pos < len(r.remotes) {
-			return r.Read(p) // start reading from next remote
+			m, err := r.Read(p[n:]) // start reading from next remote
+			return m + n, err
 		}
 	}
 
@@ -157,12 +159,7 @@ func (r *streamReader) Read(p []byte) (int, error) {
 	if err := r.ensureOpen(); err != nil {
 		return 0, err
 	}
-	n, err := r.cr.Read(p)
-	// only return EOF once all data has already been read
-	if n > 0 && errors.Is(err, io.EOF) {
-		err = nil
-	}
-	return n, err
+	return r.cr.Read(p)
 }
 
 // Close closes the reader.

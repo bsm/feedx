@@ -34,7 +34,7 @@ var _ = Describe("Reader", func() {
 		It("reads", func() {
 			data, err := io.ReadAll(subject)
 			Expect(err).NotTo(HaveOccurred())
-			Expect(len(data)).To(BeNumerically("~", 110, 5))
+			Expect(len(data)).To(Equal(111))
 			Expect(subject.NumRead()).To(Equal(0))
 		})
 
@@ -70,7 +70,7 @@ var _ = Describe("Reader", func() {
 		It("reads", func() {
 			data, err := io.ReadAll(subject)
 			Expect(err).NotTo(HaveOccurred())
-			Expect(len(data)).To(BeNumerically("~", 220, 5))
+			Expect(len(data)).To(Equal(222))
 			Expect(subject.NumRead()).To(Equal(0))
 		})
 
@@ -86,7 +86,7 @@ var _ = Describe("Reader", func() {
 				msgs = append(msgs, &msg)
 			}
 
-			Expect(msgs).To(Equal([]*testdata.MockMessage{seed(), seed(), seed(), seed(), seed(), seed()}))
+			Expect(msgs).To(ConsistOf(seed(), seed(), seed(), seed(), seed(), seed()))
 			Expect(subject.NumRead()).To(Equal(6))
 		})
 	})
