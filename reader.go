@@ -81,12 +81,6 @@ func (r *Reader) Read(p []byte) (int, error) {
 
 	n, err := r.cur.Read(p)
 	if errors.Is(err, io.EOF) {
-		// return nil error if any data read (unlikely but possible, most readers will return err = nil if data read)
-		// next read call will return 0, EOF as expected.
-		if n > 0 {
-			return n, nil
-		}
-
 		// close and remove current reader
 		if err := r.cur.Close(); err != nil {
 			return n, err
@@ -163,7 +157,12 @@ func (r *streamReader) Read(p []byte) (int, error) {
 	if err := r.ensureOpen(); err != nil {
 		return 0, err
 	}
-	return r.cr.Read(p)
+	n, err := r.cr.Read(p)
+	// only return EOF once all data has already been read
+	if n > 0 && errors.Is(err, io.EOF) {
+		err = nil
+	}
+	return n, err
 }
 
 // Close closes the reader.
