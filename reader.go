@@ -2,6 +2,7 @@ package feedx
 
 import (
 	"context"
+	"errors"
 	"io"
 	"time"
 
@@ -79,7 +80,7 @@ func (r *Reader) Read(p []byte) (int, error) {
 	}
 
 	n, err := r.cur.Read(p)
-	if err == io.EOF {
+	if errors.Is(err, io.EOF) {
 		// return nil error if any data read (unlikely but possible, most readers will return err = nil if data read)
 		// next read call will return 0, EOF as expected.
 		if n > 0 {
