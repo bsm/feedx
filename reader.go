@@ -47,7 +47,6 @@ func NewReader(ctx context.Context, remote *bfs.Object, opt *ReaderOptions) (*Re
 
 // MultiReader inits a new reader for multiple remotes.  Remotes are read sequentially as if concatenated.
 // Once all remotes are fully read, Read will return EOF.
-// MultiReader utilises a single format converter therefore all remotes must be same format.
 func MultiReader(ctx context.Context, remotes []*bfs.Object, opt *ReaderOptions) *Reader {
 	var o ReaderOptions
 	if opt != nil {
