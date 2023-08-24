@@ -2,7 +2,6 @@ package feedx
 
 import (
 	"context"
-	"errors"
 	"io"
 	"time"
 
@@ -31,14 +30,15 @@ func (o *ReaderOptions) norm(name string) {
 
 // Reader reads data from a remote feed.
 type Reader struct {
-	ctx context.Context
-	opt ReaderOptions
+	io.Reader
 
 	remotes []*bfs.Object
-	cur     *streamReader
+	closers []io.Closer
 	fd      FormatDecoder
+	opt     ReaderOptions
 
-	pos, num int
+	ctx context.Context
+	num int
 }
 
 // NewReader inits a new reader.
@@ -57,45 +57,25 @@ func MultiReader(ctx context.Context, remotes []*bfs.Object, opt *ReaderOptions)
 	if len(remotes) > 0 {
 		o.norm(remotes[0].Name())
 	}
+	readers := make([]io.Reader, 0, len(remotes))
+	closers := make([]io.Closer, 0, len(remotes))
+	for _, remote := range remotes {
+		r := &streamReader{
+			remote: remote,
+			opt:    o,
+			ctx:    ctx,
+		}
+		readers = append(readers, r)
+		closers = append(closers, r)
+	}
 
 	return &Reader{
-		remotes: remotes,
+		Reader:  io.MultiReader(readers...),
+		closers: closers,
 		opt:     o,
+		remotes: remotes,
 		ctx:     ctx,
 	}
-}
-
-// Read reads raw bytes from the feed.
-// At end of feed, Read returns 0, io.EOF.
-func (r *Reader) Read(p []byte) (int, error) {
-	if r.pos >= len(r.remotes) {
-		return 0, io.EOF
-	}
-
-	if r.cur == nil {
-		r.cur = &streamReader{
-			remote: r.remotes[r.pos],
-			opt:    r.opt,
-			ctx:    r.ctx,
-		}
-	}
-
-	n, err := r.cur.Read(p)
-	if errors.Is(err, io.EOF) {
-		// close and remove current reader
-		if err := r.cur.Close(); err != nil {
-			return n, err
-		}
-		r.cur = nil
-
-		// increment position and check if any more remotes
-		// if more remotes exist do not return EOF.
-		if r.pos++; r.pos < len(r.remotes) {
-			return n, nil
-		}
-	}
-
-	return n, err
 }
 
 // Decode decodes the next formatted value from the feed.
@@ -138,11 +118,13 @@ func (r *Reader) LastModified() (time.Time, error) {
 }
 
 // Close closes the reader.
-func (r *Reader) Close() error {
-	if r.cur != nil {
-		return r.cur.Close()
+func (r *Reader) Close() (err error) {
+	for _, c := range r.closers {
+		if e := c.Close(); e != nil {
+			err = e
+		}
 	}
-	return nil
+	return
 }
 
 type streamReader struct {
