@@ -186,7 +186,7 @@ func (c *consumer) sync(force bool) (*ConsumerSync, error) {
 	// update stores
 	previous := c.data.Load()
 	c.data.Store(data)
-	atomic.StoreInt64(&c.numRead, int64(reader.NumRead()))
+	atomic.StoreInt64(&c.numRead, reader.NumRead())
 	atomic.StoreInt64(&c.lastMod, lastMod.Millis())
 	atomic.StoreInt64(&c.lastConsumed, syncTime)
 	return &ConsumerSync{

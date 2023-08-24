@@ -35,7 +35,7 @@ var _ = Describe("Reader", func() {
 			data, err := io.ReadAll(subject)
 			Expect(err).NotTo(HaveOccurred())
 			Expect(len(data)).To(Equal(111))
-			Expect(subject.NumRead()).To(Equal(0))
+			Expect(subject.NumRead()).To(Equal(int64(0)))
 		})
 
 		It("decodes", func() {
@@ -51,7 +51,7 @@ var _ = Describe("Reader", func() {
 			}
 
 			Expect(msgs).To(ConsistOf(seed(), seed(), seed()))
-			Expect(subject.NumRead()).To(Equal(3))
+			Expect(subject.NumRead()).To(Equal(int64(3)))
 		})
 	})
 
@@ -71,7 +71,7 @@ var _ = Describe("Reader", func() {
 			data, err := io.ReadAll(subject)
 			Expect(err).NotTo(HaveOccurred())
 			Expect(len(data)).To(Equal(222))
-			Expect(subject.NumRead()).To(Equal(0))
+			Expect(subject.NumRead()).To(Equal(int64(0)))
 		})
 
 		It("decodes", func() {
@@ -87,7 +87,7 @@ var _ = Describe("Reader", func() {
 			}
 
 			Expect(msgs).To(ConsistOf(seed(), seed(), seed(), seed(), seed(), seed()))
-			Expect(subject.NumRead()).To(Equal(6))
+			Expect(subject.NumRead()).To(Equal(int64(6)))
 		})
 	})
 

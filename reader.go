@@ -37,7 +37,8 @@ type Reader struct {
 	remotes []*bfs.Object
 	cur     *streamReader
 
-	pos, num int
+	pos int
+	num int64
 }
 
 // NewReader inits a new reader.
@@ -110,7 +111,7 @@ func (r *Reader) Decode(v interface{}) error {
 }
 
 // NumRead returns the number of read values.
-func (r *Reader) NumRead() int {
+func (r *Reader) NumRead() int64 {
 	return r.num
 }
 
