@@ -32,7 +32,7 @@ func (o *ReaderOptions) norm(name string) {
 // Reader reads data from a remote feed.
 type Reader struct {
 	ctx context.Context
-	opt ReaderOptions
+	opt *ReaderOptions
 
 	remotes []*bfs.Object
 	cur     *streamReader
@@ -49,14 +49,9 @@ func NewReader(ctx context.Context, remote *bfs.Object, opt *ReaderOptions) (*Re
 // MultiReader inits a new reader for multiple remotes.  Remotes are read sequentially as if concatenated.
 // Once all remotes are fully read, Read will return EOF.
 func MultiReader(ctx context.Context, remotes []*bfs.Object, opt *ReaderOptions) *Reader {
-	var o ReaderOptions
-	if opt != nil {
-		o = *opt
-	}
-
 	return &Reader{
 		remotes: remotes,
-		opt:     o,
+		opt:     opt,
 		ctx:     ctx,
 	}
 }
@@ -146,8 +141,13 @@ func (r *Reader) ensureCurrent() bool {
 
 	if r.cur == nil {
 		remote := r.remotes[r.pos]
-		o := r.opt
+
+		var o ReaderOptions
+		if r.opt != nil {
+			o = *r.opt
+		}
 		o.norm(remote.Name())
+
 		r.cur = &streamReader{
 			remote: remote,
 			opt:    o,
