@@ -19,7 +19,7 @@ var _ = Describe("Reader", func() {
 
 	Describe("NewReader", func() {
 		BeforeEach(func() {
-			obj = bfs.NewInMemObject("path/to/file.json")
+			obj = bfs.NewInMemObject("path/to/file.json.gz")
 			Expect(writeMulti(obj, 3, time.Time{})).To(Succeed())
 
 			var err error
@@ -57,7 +57,7 @@ var _ = Describe("Reader", func() {
 
 	Describe("MultiReader", func() {
 		BeforeEach(func() {
-			obj = bfs.NewInMemObject("path/to/file.json")
+			obj = bfs.NewInMemObject("path/to/file.json.gz")
 			Expect(writeMulti(obj, 3, time.Time{})).To(Succeed())
 
 			subject = feedx.MultiReader(ctx, []*bfs.Object{obj, obj}, nil)

@@ -36,7 +36,6 @@ type Reader struct {
 
 	remotes []*bfs.Object
 	cur     *streamReader
-	fd      FormatDecoder
 
 	pos, num int
 }
@@ -54,9 +53,6 @@ func MultiReader(ctx context.Context, remotes []*bfs.Object, opt *ReaderOptions)
 	if opt != nil {
 		o = *opt
 	}
-	if len(remotes) > 0 {
-		o.norm(remotes[0].Name())
-	}
 
 	return &Reader{
 		remotes: remotes,
@@ -68,21 +64,12 @@ func MultiReader(ctx context.Context, remotes []*bfs.Object, opt *ReaderOptions)
 // Read reads raw bytes from the feed.
 // At end of feed, Read returns 0, io.EOF.
 func (r *Reader) Read(p []byte) (int, error) {
-	if r.pos >= len(r.remotes) {
+	if !r.ensureCurrent() {
 		return 0, io.EOF
-	}
-
-	if r.cur == nil {
-		r.cur = &streamReader{
-			remote: r.remotes[r.pos],
-			opt:    r.opt,
-			ctx:    r.ctx,
-		}
 	}
 
 	n, err := r.cur.Read(p)
 	if errors.Is(err, io.EOF) {
-		// close and remove current reader
 		if err := r.cur.Close(); err != nil {
 			return n, err
 		}
@@ -100,20 +87,27 @@ func (r *Reader) Read(p []byte) (int, error) {
 
 // Decode decodes the next formatted value from the feed.
 func (r *Reader) Decode(v interface{}) error {
-	if r.fd == nil {
-		fd, err := r.opt.Format.NewDecoder(r)
-		if err != nil {
+	if !r.ensureCurrent() {
+		return io.EOF
+	}
+
+	err := r.cur.Decode(v)
+	if err == nil {
+		r.num++
+	}
+	if errors.Is(err, io.EOF) {
+		if err := r.cur.Close(); err != nil {
 			return err
 		}
-		r.fd = fd
-	}
+		r.cur = nil
 
-	if err := r.fd.Decode(v); err != nil {
-		return err
+		// increment position and check if any more remotes
+		// if more remotes exist start reading from next reader.
+		if r.pos++; r.pos < len(r.remotes) {
+			return r.Decode(v)
+		}
 	}
-
-	r.num++
-	return nil
+	return err
 }
 
 // NumRead returns the number of read values.
@@ -145,6 +139,24 @@ func (r *Reader) Close() error {
 	return nil
 }
 
+func (r *Reader) ensureCurrent() bool {
+	if r.pos >= len(r.remotes) {
+		return false
+	}
+
+	if r.cur == nil {
+		remote := r.remotes[r.pos]
+		o := r.opt
+		o.norm(remote.Name())
+		r.cur = &streamReader{
+			remote: remote,
+			opt:    o,
+			ctx:    r.ctx,
+		}
+	}
+	return true
+}
+
 type streamReader struct {
 	remote *bfs.Object
 	opt    ReaderOptions
@@ -152,6 +164,7 @@ type streamReader struct {
 
 	br io.ReadCloser // bfs reader
 	cr io.ReadCloser // compression reader
+	fd FormatDecoder
 }
 
 // Read reads raw bytes from the feed.
@@ -162,9 +175,31 @@ func (r *streamReader) Read(p []byte) (int, error) {
 	return r.cr.Read(p)
 }
 
+// Decode decodes the next formatted value from the feed.
+func (r *streamReader) Decode(v interface{}) error {
+	if err := r.ensureOpen(); err != nil {
+		return err
+	}
+
+	if r.fd == nil {
+		fd, err := r.opt.Format.NewDecoder(r.cr)
+		if err != nil {
+			return err
+		}
+		r.fd = fd
+	}
+
+	return r.fd.Decode(v)
+}
+
 // Close closes the reader.
 func (r *streamReader) Close() error {
 	var err error
+	if r.fd != nil {
+		if e := r.fd.Close(); e != nil {
+			err = e
+		}
+	}
 	if r.cr != nil {
 		if e := r.cr.Close(); e != nil {
 			err = e
