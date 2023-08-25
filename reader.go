@@ -150,14 +150,10 @@ func (r *Reader) nextRemote() (bool, error) {
 	if err := r.cur.Close(); err != nil {
 		return false, err
 	}
+	// unset current, increment cursor
 	r.cur = nil
-
-	// increment position and check if any more remotes
-	if r.pos++; r.pos < len(r.remotes) {
-		return true, nil
-	}
-
-	return false, nil
+	r.pos++
+	return r.pos < len(r.remotes), nil
 }
 
 type streamReader struct {
