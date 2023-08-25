@@ -65,42 +65,31 @@ func (r *Reader) Read(p []byte) (int, error) {
 
 	n, err := r.cur.Read(p)
 	if errors.Is(err, io.EOF) {
-		if err := r.cur.Close(); err != nil {
+		if more, err := r.nextRemote(); err != nil {
 			return n, err
-		}
-		r.cur = nil
-
-		// increment position and check if any more remotes
-		// if more remotes exist do not return EOF.
-		if r.pos++; r.pos < len(r.remotes) {
-			return n, nil
+		} else if more {
+			return n, nil // dont return EOF until all remotes read
 		}
 	}
-
 	return n, err
 }
 
 // Decode decodes the next formatted value from the feed.
+// At end of feed, Read returns io.EOF.
 func (r *Reader) Decode(v interface{}) error {
 	if !r.ensureCurrent() {
 		return io.EOF
 	}
 
 	err := r.cur.Decode(v)
-	if err == nil {
-		r.num++
-	}
 	if errors.Is(err, io.EOF) {
-		if err := r.cur.Close(); err != nil {
+		if more, err := r.nextRemote(); err != nil {
 			return err
+		} else if more {
+			return r.Decode(v) // start decoding from next remote
 		}
-		r.cur = nil
-
-		// increment position and check if any more remotes
-		// if more remotes exist start reading from next reader.
-		if r.pos++; r.pos < len(r.remotes) {
-			return r.Decode(v)
-		}
+	} else if err == nil {
+		r.num++
 	}
 	return err
 }
@@ -155,6 +144,20 @@ func (r *Reader) ensureCurrent() bool {
 		}
 	}
 	return true
+}
+
+func (r *Reader) nextRemote() (bool, error) {
+	if err := r.cur.Close(); err != nil {
+		return false, err
+	}
+	r.cur = nil
+
+	// increment position and check if any more remotes
+	if r.pos++; r.pos < len(r.remotes) {
+		return true, nil
+	}
+
+	return false, nil
 }
 
 type streamReader struct {
