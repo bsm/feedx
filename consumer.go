@@ -107,7 +107,7 @@ func NewIncrementalConsumer(ctx context.Context, bucketURL string, opt *Consumer
 		_ = bucket.Close()
 		return nil, err
 	}
-	csm.(*consumer).ownRemote = true
+	csm.(*consumer).ownBucket = true
 	return csm, nil
 }
 
@@ -121,30 +121,32 @@ func NewIncrementalConsumerForBucket(ctx context.Context, bucket bfs.Bucket, opt
 
 	ctx, stop := context.WithCancel(ctx)
 	c := &consumer{
-		remote:      bfs.NewObjectFromBucket(bucket, "manifest.json"),
-		bucket:      bucket,
-		opt:         o,
-		ctx:         ctx,
-		stop:        stop,
-		cfn:         cfn,
-		incremental: true,
+		remote:    bfs.NewObjectFromBucket(bucket, "manifest.json"),
+		ownRemote: true,
+		bucket:    bucket,
+		opt:       o,
+		ctx:       ctx,
+		stop:      stop,
+		cfn:       cfn,
 	}
 
 	return c.run()
 }
 
 type consumer struct {
-	remote *bfs.Object
-	bucket bfs.Bucket
-
-	opt  ConsumerOptions
 	ctx  context.Context
 	stop context.CancelFunc
 
-	cfn  ConsumeFunc
-	data atomic.Value
+	remote    *bfs.Object
+	ownRemote bool
 
-	ownRemote, incremental                   bool
+	bucket    bfs.Bucket
+	ownBucket bool
+
+	opt ConsumerOptions
+	cfn ConsumeFunc
+
+	data                                     atomic.Value
 	numRead, lastMod, lastSync, lastConsumed int64
 }
 
@@ -176,14 +178,15 @@ func (c *consumer) LastModified() time.Time {
 // Close implements Consumer interface.
 func (c *consumer) Close() (err error) {
 	c.stop()
-	if c.ownRemote {
+	if c.ownRemote && c.remote != nil {
 		if e := c.remote.Close(); e != nil {
 			err = e
 		}
-		if c.bucket != nil {
-			if e := c.bucket.Close(); e != nil {
-				err = e
-			}
+		c.remote = nil
+	}
+	if c.ownBucket && c.bucket != nil {
+		if e := c.bucket.Close(); e != nil {
+			err = e
 		}
 	}
 	return
@@ -219,7 +222,7 @@ func (c *consumer) sync(force bool) (*ConsumerSync, error) {
 
 	// open remote reader
 	var reader *Reader
-	if c.incremental {
+	if c.bucket != nil {
 		if reader, err = c.newIncrementalReader(); err != nil {
 			return nil, err
 		}

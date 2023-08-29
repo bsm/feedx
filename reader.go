@@ -35,10 +35,12 @@ type Reader struct {
 	opt *ReaderOptions
 
 	remotes    []*bfs.Object
-	cur        *streamReader
 	ownRemotes bool
-	pos        int
-	num        int64
+
+	cur *streamReader
+	pos int
+
+	num int64
 }
 
 // NewReader inits a new reader.
