@@ -274,13 +274,11 @@ func (c *consumer) loop() {
 }
 
 func (c *consumer) newIncrementalReader() (*Reader, []*bfs.Object, error) {
-	// fetch remote manifest
 	manifest, err := loadManifest(c.ctx, c.remote)
 	if err != nil {
 		return nil, nil, err
 	}
 
-	// init multi reader for remote files
 	files := manifest.Files
 	remotes := make([]*bfs.Object, 0, len(files))
 	for _, file := range files {

@@ -92,7 +92,7 @@ var _ = Describe("Consumer", func() {
 
 			manifest := &feedx.Manifest{
 				LastModified: feedx.TimestampFromTime(mockTime),
-				Files:        []string{dataFile.Name()},
+				Files:        []string{dataFile.Name(), dataFile.Name()},
 			}
 			writer := feedx.NewWriter(ctx, bfs.NewObjectFromBucket(bucket, "manifest.json"), &feedx.WriterOptions{LastMod: mockTime})
 			defer writer.Discard()
@@ -113,8 +113,8 @@ var _ = Describe("Consumer", func() {
 			Expect(subject.LastSync()).To(BeTemporally("~", time.Now(), time.Second))
 			Expect(subject.LastConsumed()).To(BeTemporally("==", subject.LastSync()))
 			Expect(subject.LastModified()).To(BeTemporally("==", mockTime.Truncate(time.Millisecond)))
-			Expect(subject.NumRead()).To(Equal(2))
-			Expect(subject.Data()).To(ConsistOf(seed(), seed()))
+			Expect(subject.NumRead()).To(Equal(4))
+			Expect(subject.Data()).To(ConsistOf(seed(), seed(), seed(), seed()))
 			Expect(subject.Close()).To(Succeed())
 		})
 
@@ -127,7 +127,7 @@ var _ = Describe("Consumer", func() {
 			Expect(subject.LastSync()).To(BeTemporally(">", prevSync))
 			Expect(subject.LastConsumed()).To(BeTemporally("==", prevSync)) // skipped on last sync
 			Expect(subject.LastModified()).To(BeTemporally("==", mockTime.Truncate(time.Millisecond)))
-			Expect(subject.NumRead()).To(Equal(2))
+			Expect(subject.NumRead()).To(Equal(4))
 		})
 
 		It("always consumes if LastModified not set", func() {
