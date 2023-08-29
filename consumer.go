@@ -19,9 +19,6 @@ type ConsumerOptions struct {
 	// AfterSync callbacks are triggered after each sync, receiving
 	// the sync state and error (if occurred).
 	AfterSync func(*ConsumerSync, error)
-
-	// incremental is a flag to denote if feed was written by incremental producer
-	incremental bool
 }
 
 func (o *ConsumerOptions) norm() {
@@ -120,26 +117,25 @@ func NewIncrementalConsumerForBucket(ctx context.Context, bucket bfs.Bucket, opt
 	if opt != nil {
 		o = *opt
 	}
-	o.incremental = true
 	o.norm()
 
 	ctx, stop := context.WithCancel(ctx)
 	c := &consumer{
-		remote: bfs.NewObjectFromBucket(bucket, "manifest.json"),
-		bucket: bucket,
-		opt:    o,
-		ctx:    ctx,
-		stop:   stop,
-		cfn:    cfn,
+		remote:      bfs.NewObjectFromBucket(bucket, "manifest.json"),
+		bucket:      bucket,
+		opt:         o,
+		ctx:         ctx,
+		stop:        stop,
+		cfn:         cfn,
+		incremental: true,
 	}
 
 	return c.run()
 }
 
 type consumer struct {
-	remote    *bfs.Object
-	bucket    bfs.Bucket
-	ownRemote bool
+	remote *bfs.Object
+	bucket bfs.Bucket
 
 	opt  ConsumerOptions
 	ctx  context.Context
@@ -148,6 +144,7 @@ type consumer struct {
 	cfn  ConsumeFunc
 	data atomic.Value
 
+	ownRemote, incremental                   bool
 	numRead, lastMod, lastSync, lastConsumed int64
 }
 
@@ -222,13 +219,9 @@ func (c *consumer) sync(force bool) (*ConsumerSync, error) {
 
 	// open remote reader
 	var reader *Reader
-	if c.opt.incremental {
-		var remotes []*bfs.Object
-		if reader, remotes, err = c.newIncrementalReader(); err != nil {
+	if c.incremental {
+		if reader, err = c.newIncrementalReader(); err != nil {
 			return nil, err
-		}
-		for _, r := range remotes {
-			defer r.Close()
 		}
 	} else {
 		if reader, err = NewReader(c.ctx, c.remote, &c.opt.ReaderOptions); err != nil {
@@ -273,10 +266,10 @@ func (c *consumer) loop() {
 	}
 }
 
-func (c *consumer) newIncrementalReader() (*Reader, []*bfs.Object, error) {
+func (c *consumer) newIncrementalReader() (*Reader, error) {
 	manifest, err := loadManifest(c.ctx, c.remote)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 
 	files := manifest.Files
@@ -284,5 +277,7 @@ func (c *consumer) newIncrementalReader() (*Reader, []*bfs.Object, error) {
 	for _, file := range files {
 		remotes = append(remotes, bfs.NewObjectFromBucket(c.bucket, file))
 	}
-	return MultiReader(c.ctx, remotes, &c.opt.ReaderOptions), remotes, nil
+	r := MultiReader(c.ctx, remotes, &c.opt.ReaderOptions)
+	r.ownRemotes = true
+	return r, nil
 }
