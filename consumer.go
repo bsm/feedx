@@ -188,6 +188,7 @@ func (c *consumer) Close() (err error) {
 		if e := c.bucket.Close(); e != nil {
 			err = e
 		}
+		c.bucket = nil
 	}
 	return
 }
@@ -222,7 +223,7 @@ func (c *consumer) sync(force bool) (*ConsumerSync, error) {
 
 	// open remote reader
 	var reader *Reader
-	if c.bucket != nil {
+	if c.isIncremental() {
 		if reader, err = c.newIncrementalReader(); err != nil {
 			return nil, err
 		}
@@ -267,6 +268,10 @@ func (c *consumer) loop() {
 			}
 		}
 	}
+}
+
+func (c *consumer) isIncremental() bool {
+	return c.bucket != nil
 }
 
 func (c *consumer) newIncrementalReader() (*Reader, error) {
