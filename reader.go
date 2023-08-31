@@ -34,10 +34,12 @@ type Reader struct {
 	ctx context.Context
 	opt *ReaderOptions
 
-	remotes []*bfs.Object
-	cur     *streamReader
+	remotes    []*bfs.Object
+	ownRemotes bool
 
+	cur *streamReader
 	pos int
+
 	num int64
 }
 
@@ -116,11 +118,18 @@ func (r *Reader) LastModified() (time.Time, error) {
 }
 
 // Close closes the reader.
-func (r *Reader) Close() error {
+func (r *Reader) Close() (err error) {
 	if r.cur != nil {
-		return r.cur.Close()
+		err = r.cur.Close()
 	}
-	return nil
+	if r.ownRemotes {
+		for _, remote := range r.remotes {
+			if e := remote.Close(); e != nil {
+				err = e
+			}
+		}
+	}
+	return
 }
 
 func (r *Reader) ensureCurrent() bool {

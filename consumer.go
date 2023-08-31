@@ -21,8 +21,7 @@ type ConsumerOptions struct {
 	AfterSync func(*ConsumerSync, error)
 }
 
-func (o *ConsumerOptions) norm(name string) {
-	o.ReaderOptions.norm(name)
+func (o *ConsumerOptions) norm() {
 	if o.Interval <= 0 {
 		o.Interval = time.Minute
 	}
@@ -82,7 +81,7 @@ func NewConsumerForRemote(ctx context.Context, remote *bfs.Object, opt *Consumer
 	if opt != nil {
 		o = *opt
 	}
-	o.norm(remote.Name())
+	o.norm()
 
 	ctx, stop := context.WithCancel(ctx)
 	c := &consumer{
@@ -93,29 +92,61 @@ func NewConsumerForRemote(ctx context.Context, remote *bfs.Object, opt *Consumer
 		cfn:    cfn,
 	}
 
-	// run initial sync
-	if _, err := c.sync(true); err != nil {
-		_ = c.Close()
+	return c.run()
+}
+
+// NewIncrementalConsumer starts a new incremental feed consumer.
+func NewIncrementalConsumer(ctx context.Context, bucketURL string, opt *ConsumerOptions, cfn ConsumeFunc) (Consumer, error) {
+	bucket, err := bfs.Connect(ctx, bucketURL)
+	if err != nil {
 		return nil, err
 	}
 
-	// start continuous loop
-	go c.loop()
+	csm, err := NewIncrementalConsumerForBucket(ctx, bucket, opt, cfn)
+	if err != nil {
+		_ = bucket.Close()
+		return nil, err
+	}
+	csm.(*consumer).ownBucket = true
+	return csm, nil
+}
 
-	return c, nil
+// NewIncrementalConsumerForBucket starts a new incremental feed consumer with a bucket.
+func NewIncrementalConsumerForBucket(ctx context.Context, bucket bfs.Bucket, opt *ConsumerOptions, cfn ConsumeFunc) (Consumer, error) {
+	var o ConsumerOptions
+	if opt != nil {
+		o = *opt
+	}
+	o.norm()
+
+	ctx, stop := context.WithCancel(ctx)
+	c := &consumer{
+		remote:    bfs.NewObjectFromBucket(bucket, "manifest.json"),
+		ownRemote: true,
+		bucket:    bucket,
+		opt:       o,
+		ctx:       ctx,
+		stop:      stop,
+		cfn:       cfn,
+	}
+
+	return c.run()
 }
 
 type consumer struct {
-	remote    *bfs.Object
-	ownRemote bool
-
-	opt  ConsumerOptions
 	ctx  context.Context
 	stop context.CancelFunc
 
-	cfn  ConsumeFunc
-	data atomic.Value
+	remote    *bfs.Object
+	ownRemote bool
 
+	bucket    bfs.Bucket
+	ownBucket bool
+
+	opt ConsumerOptions
+	cfn ConsumeFunc
+
+	data                                     atomic.Value
 	numRead, lastMod, lastSync, lastConsumed int64
 }
 
@@ -145,19 +176,39 @@ func (c *consumer) LastModified() time.Time {
 }
 
 // Close implements Consumer interface.
-func (c *consumer) Close() error {
+func (c *consumer) Close() (err error) {
 	c.stop()
-	if c.ownRemote {
-		return c.remote.Close()
+	if c.ownRemote && c.remote != nil {
+		if e := c.remote.Close(); e != nil {
+			err = e
+		}
+		c.remote = nil
 	}
-	return nil
+	if c.ownBucket && c.bucket != nil {
+		if e := c.bucket.Close(); e != nil {
+			err = e
+		}
+		c.bucket = nil
+	}
+	return
+}
+
+func (c *consumer) run() (Consumer, error) {
+	// run initial sync
+	if _, err := c.sync(true); err != nil {
+		_ = c.Close()
+		return nil, err
+	}
+
+	// start continuous loop
+	go c.loop()
+
+	return c, nil
 }
 
 func (c *consumer) sync(force bool) (*ConsumerSync, error) {
 	syncTime := timestampFromTime(time.Now()).Millis()
-	defer func() {
-		atomic.StoreInt64(&c.lastSync, syncTime)
-	}()
+	defer atomic.StoreInt64(&c.lastSync, syncTime)
 
 	// retrieve original last modified time
 	lastMod, err := remoteLastModified(c.ctx, c.remote)
@@ -171,9 +222,15 @@ func (c *consumer) sync(force bool) (*ConsumerSync, error) {
 	}
 
 	// open remote reader
-	reader, err := NewReader(c.ctx, c.remote, &c.opt.ReaderOptions)
-	if err != nil {
-		return nil, err
+	var reader *Reader
+	if c.isIncremental() {
+		if reader, err = c.newIncrementalReader(); err != nil {
+			return nil, err
+		}
+	} else {
+		if reader, err = NewReader(c.ctx, c.remote, &c.opt.ReaderOptions); err != nil {
+			return nil, err
+		}
 	}
 	defer reader.Close()
 
@@ -211,4 +268,24 @@ func (c *consumer) loop() {
 			}
 		}
 	}
+}
+
+func (c *consumer) isIncremental() bool {
+	return c.bucket != nil
+}
+
+func (c *consumer) newIncrementalReader() (*Reader, error) {
+	manifest, err := loadManifest(c.ctx, c.remote)
+	if err != nil {
+		return nil, err
+	}
+
+	files := manifest.Files
+	remotes := make([]*bfs.Object, 0, len(files))
+	for _, file := range files {
+		remotes = append(remotes, bfs.NewObjectFromBucket(c.bucket, file))
+	}
+	r := MultiReader(c.ctx, remotes, &c.opt.ReaderOptions)
+	r.ownRemotes = true
+	return r, nil
 }
