@@ -2,91 +2,102 @@ package feedx_test
 
 import (
 	"context"
-	"strconv"
+	"reflect"
 	"sync/atomic"
+	"testing"
 	"time"
 
 	"github.com/bsm/bfs"
 	"github.com/bsm/feedx"
-	. "github.com/bsm/ginkgo/v2"
-	. "github.com/bsm/gomega"
 )
 
-var _ = Describe("IncrementalProducer", func() {
-	var subject *feedx.IncrementalProducer
-	var bucket bfs.Bucket
-	var numRuns uint32
-	var ctx = context.Background()
-	var lastMod = mockTime
+func TestIncrementalProducer(t *testing.T) {
+	numRuns := new(atomic.Int32)
+	bucket := bfs.NewInMem()
+	modTime := time.Unix(1515151515, 123456789)
 
-	setup := func(modTime time.Time, o *feedx.IncrementalProducerOptions) {
-		var err error
+	prodFunc := func(_ time.Time) feedx.ProduceFunc {
+		return func(w *feedx.Writer) error {
+			numRuns.Add(1)
 
-		lastModFunc := func(_ context.Context) (time.Time, error) {
-			return modTime, nil
-		}
-		subject, err = feedx.NewIncrementalProducerForBucket(ctx, bucket, o, lastModFunc, func(_ time.Time) feedx.ProduceFunc {
-			return func(w *feedx.Writer) error {
-				atomic.AddUint32(&numRuns, 1)
-
-				for i := 0; i < 10; i++ {
-					if err := w.Encode(seed()); err != nil {
-						return err
-					}
+			for i := 0; i < 10; i++ {
+				if err := w.Encode(seed()); err != nil {
+					return err
 				}
-				return nil
 			}
-		})
-		Expect(err).NotTo(HaveOccurred())
+			return nil
+		}
 	}
+	lastModFunc := func(_ context.Context) (time.Time, error) { return modTime, nil }
 
-	BeforeEach(func() {
-		atomic.StoreUint32(&numRuns, 0)
-		bucket = bfs.NewInMem()
-	})
+	t.Run("produces", func(t *testing.T) {
+		p, err := feedx.NewIncrementalProducerForBucket(t.Context(), bucket, nil, lastModFunc, prodFunc)
+		if err != nil {
+			t.Fatal("unexpected error", err)
+		}
+		defer func() { _ = p.Close() }()
 
-	AfterEach(func() {
-		if subject != nil {
-			Expect(subject.Close()).To(Succeed())
+		if exp, got := int32(1), numRuns.Load(); exp != got {
+			t.Errorf("expected %v, got %v", exp, got)
+		}
+		if dur := time.Since(p.LastAttempt()); dur > time.Second {
+			t.Errorf("expected to be recent, but was %s ago", dur)
+		}
+		if exp, got := time.Unix(1515151515, 123000000), p.LastModified(); exp != got {
+			t.Errorf("expected %v, got %v", exp, got)
+		}
+		if exp, got := 10, p.NumWritten(); exp != got {
+			t.Errorf("expected %v, got %v", exp, got)
+		}
+
+		mft, err := feedx.LoadManifest(t.Context(), bfs.NewObjectFromBucket(bucket, "manifest.json"))
+		if err != nil {
+			t.Fatal("unexpected error", err)
+		} else if exp := (&feedx.Manifest{
+			LastModified: feedx.TimestampFromTime(modTime),
+			Files:        []string{"data-0-20180105-112515123.pbz"},
+		}); !reflect.DeepEqual(exp, mft) {
+			t.Errorf("expected %#v, got %#v", exp, mft)
+		}
+
+		info, err := bucket.Head(t.Context(), "data-0-20180105-112515123.pbz")
+		if err != nil {
+			t.Fatal("unexpected error", err)
+		} else if max, got := int64(45), info.Size; got > max {
+			t.Errorf("expected %v to be < %v", got, max)
+		}
+
+		if exp, got := "1515151515123", info.Metadata.Get("X-Feedx-Last-Modified"); exp != got {
+			t.Errorf("expected %v, got %v", exp, got)
 		}
 	})
 
-	It("produces", func() {
-		setup(lastMod, nil)
+	t.Run("skip if not changed", func(t *testing.T) {
+		runCount := numRuns.Load()
 
-		Expect(subject.LastPush()).To(BeTemporally("~", time.Now(), time.Second))
-		Expect(subject.LastModified()).To(BeTemporally("~", lastMod, time.Second))
-		Expect(subject.NumWritten()).To(Equal(10))
-		Expect(subject.Close()).To(Succeed())
+		p, err := feedx.NewIncrementalProducerForBucket(t.Context(), bucket, nil, lastModFunc, prodFunc)
+		if err != nil {
+			t.Fatal("unexpected error", err)
+		}
+		defer func() { _ = p.Close() }()
 
-		Expect(feedx.LoadManifest(ctx, bfs.NewObjectFromBucket(bucket, "manifest.json"))).To(Equal(&feedx.Manifest{
-			LastModified: feedx.TimestampFromTime(lastMod),
-			Files:        []string{"data-0-20180105-112515123.pbz"},
-		}))
-
-		info, err := bucket.Head(ctx, "data-0-20180105-112515123.pbz")
-		Expect(err).NotTo(HaveOccurred())
-		Expect(info.Size).To(BeNumerically("~", 35, 10))
-
-		metaLastMod, err := strconv.ParseInt(info.Metadata.Get("X-Feedx-Last-Modified"), 10, 64)
-		Expect(err).NotTo(HaveOccurred())
-		Expect(time.UnixMilli(metaLastMod)).To(BeTemporally("~", lastMod, time.Second))
+		if exp, got := runCount, numRuns.Load(); exp != got {
+			t.Errorf("expected %v, got %v", exp, got)
+		}
 	})
 
-	It("only produces if data changed", func() {
-		// run initial producer cycle
-		setup(lastMod, nil)
-		Expect(subject.NumWritten()).To(Equal(10))
-		Expect(subject.Close()).To(Succeed())
+	t.Run("run if changed", func(t *testing.T) {
+		runCount := numRuns.Load()
 
-		// run producer cycle with unchanged last mod date
-		setup(lastMod, nil)
-		Expect(subject.NumWritten()).To(Equal(0))
-		Expect(subject.Close()).To(Succeed())
+		newLastMod := func(ctx context.Context) (time.Time, error) { return modTime.Add(time.Hour), nil }
+		p, err := feedx.NewIncrementalProducerForBucket(t.Context(), bucket, nil, newLastMod, prodFunc)
+		if err != nil {
+			t.Fatal("unexpected error", err)
+		}
+		defer func() { _ = p.Close() }()
 
-		// run producer cycle after bumping last mod date
-		setup(lastMod.Add(time.Hour), nil)
-		Expect(subject.NumWritten()).To(Equal(10))
-		Expect(subject.Close()).To(Succeed())
+		if exp, got := runCount+1, numRuns.Load(); exp != got {
+			t.Errorf("expected %v, got %v", exp, got)
+		}
 	})
-})
+}

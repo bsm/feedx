@@ -1,94 +1,108 @@
 package feedx_test
 
 import (
-	"context"
 	"io"
+	"reflect"
+	"testing"
 	"time"
 
 	"github.com/bsm/bfs"
 	"github.com/bsm/feedx"
 	"github.com/bsm/feedx/internal/testdata"
-	. "github.com/bsm/ginkgo/v2"
-	. "github.com/bsm/gomega"
 )
 
-var _ = Describe("Reader", func() {
-	var subject *feedx.Reader
-	var obj *bfs.Object
-	var ctx = context.Background()
+func TestReader(t *testing.T) {
+	t.Run("reads", func(t *testing.T) {
+		r := fixReader(t)
 
-	Describe("NewReader", func() {
-		BeforeEach(func() {
-			obj = bfs.NewInMemObject("path/to/file.json.gz")
-			Expect(writeMulti(obj, 3, time.Time{})).To(Succeed())
-
-			var err error
-			subject, err = feedx.NewReader(ctx, obj, nil)
-			Expect(err).NotTo(HaveOccurred())
-		})
-
-		AfterEach(func() {
-			Expect(subject.Close()).To(Succeed())
-		})
-
-		It("reads", func() {
-			data, err := io.ReadAll(subject)
-			Expect(err).NotTo(HaveOccurred())
-			Expect(len(data)).To(Equal(111))
-			Expect(subject.NumRead()).To(Equal(int64(0)))
-		})
-
-		It("decodes", func() {
-			var msgs []*testdata.MockMessage
-			for {
-				var msg testdata.MockMessage
-				err := subject.Decode(&msg)
-				if err == io.EOF {
-					break
-				}
-				Expect(err).NotTo(HaveOccurred())
-				msgs = append(msgs, &msg)
-			}
-
-			Expect(msgs).To(ConsistOf(seed(), seed(), seed()))
-			Expect(subject.NumRead()).To(Equal(int64(3)))
-		})
+		if data, err := io.ReadAll(r); err != nil {
+			t.Fatal("unexpected error", err)
+		} else if exp, got := 111, len(data); exp != got {
+			t.Errorf("expected %v, got %v", exp, got)
+		} else if exp, got := int64(0), r.NumRead(); exp != got {
+			t.Errorf("expected %v, got %v", exp, got)
+		}
 	})
 
-	Describe("MultiReader", func() {
-		BeforeEach(func() {
-			obj = bfs.NewInMemObject("path/to/file.json.gz")
-			Expect(writeMulti(obj, 3, time.Time{})).To(Succeed())
+	t.Run("decodes", func(t *testing.T) {
+		r := fixReader(t)
+		msgs := drainReader(t, r)
+		if exp := seedN(3); !reflect.DeepEqual(exp, msgs) {
+			t.Errorf("expected %#v, got %#v", exp, msgs)
+		}
+		if exp, got := int64(3), r.NumRead(); exp != got {
+			t.Errorf("expected %v, got %v", exp, got)
+		}
+	})
+}
 
-			subject = feedx.MultiReader(ctx, []*bfs.Object{obj, obj}, nil)
-		})
+func fixReader(t *testing.T) *feedx.Reader {
+	t.Helper()
 
-		AfterEach(func() {
-			Expect(subject.Close()).To(Succeed())
-		})
+	obj := bfs.NewInMemObject("path/to/file.jsonz")
+	if err := writeN(obj, 3, time.Time{}); err != nil {
+		t.Fatal("unexpected error", err)
+	}
 
-		It("reads", func() {
-			data, err := io.ReadAll(subject)
-			Expect(err).NotTo(HaveOccurred())
-			Expect(len(data)).To(Equal(222))
-			Expect(subject.NumRead()).To(Equal(int64(0)))
-		})
+	r, err := feedx.NewReader(t.Context(), obj, nil)
+	if err != nil {
+		t.Fatal("unexpected error", err)
+	}
 
-		It("decodes", func() {
-			var msgs []*testdata.MockMessage
-			for {
-				var msg testdata.MockMessage
-				err := subject.Decode(&msg)
-				if err == io.EOF {
-					break
-				}
-				Expect(err).NotTo(HaveOccurred())
-				msgs = append(msgs, &msg)
-			}
-
-			Expect(msgs).To(ConsistOf(seed(), seed(), seed(), seed(), seed(), seed()))
-			Expect(subject.NumRead()).To(Equal(int64(6)))
-		})
+	t.Cleanup(func() {
+		_ = r.Close()
 	})
 
-})
+	return r
+}
+
+func TestMultiReader(t *testing.T) {
+	t.Run("reads", func(t *testing.T) {
+		r := fixMultiReader(t)
+
+		if data, err := io.ReadAll(r); err != nil {
+			t.Fatal("unexpected error", err)
+		} else if exp, got := 222, len(data); exp != got {
+			t.Errorf("expected %v, got %v", exp, got)
+		} else if exp, got := int64(0), r.NumRead(); exp != got {
+			t.Errorf("expected %v, got %v", exp, got)
+		}
+	})
+
+	t.Run("decodes", func(t *testing.T) {
+		r := fixMultiReader(t)
+		msgs := drainReader(t, r)
+		if exp := seedN(6); !reflect.DeepEqual(exp, msgs) {
+			t.Errorf("expected %#v, got %#v", exp, msgs)
+		}
+		if exp, got := int64(6), r.NumRead(); exp != got {
+			t.Errorf("expected %v, got %v", exp, got)
+		}
+	})
+}
+
+func fixMultiReader(t *testing.T) *feedx.Reader {
+	t.Helper()
+
+	obj := bfs.NewInMemObject("path/to/file.jsonz")
+	if err := writeN(obj, 3, time.Time{}); err != nil {
+		t.Fatal("unexpected error", err)
+	}
+
+	r := feedx.MultiReader(t.Context(), []*bfs.Object{obj, obj}, nil)
+	t.Cleanup(func() {
+		_ = r.Close()
+	})
+
+	return r
+}
+
+func drainReader(t *testing.T, r interface{ Decode(any) error }) []*testdata.MockMessage {
+	t.Helper()
+
+	msgs, err := readMessages(r)
+	if err != nil {
+		t.Fatal("unexpected error", err)
+	}
+	return msgs
+}

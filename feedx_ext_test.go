@@ -16,6 +16,8 @@ func TimestampFromTime(t time.Time) timestamp {
 	return timestampFromTime(t)
 }
 
+type NoFormat = noFormat
+
 type Manifest manifest
 
 func LoadManifest(ctx context.Context, obj *bfs.Object) (*Manifest, error) {

@@ -29,7 +29,7 @@ func loadManifest(ctx context.Context, obj *bfs.Object) (*manifest, error) {
 	} else if err != nil {
 		return nil, err
 	}
-	defer r.Close()
+	defer func() { _ = r.Close() }()
 
 	if err := r.Decode(m); errors.Is(err, bfs.ErrNotFound) { // some BFS implementations defer Open-ing the S3 object till first Decode call
 		return m, nil
@@ -43,16 +43,22 @@ func loadManifest(ctx context.Context, obj *bfs.Object) (*manifest, error) {
 func (m *manifest) newDataFileName(wopt *WriterOptions) string {
 	ts := strings.ReplaceAll(wopt.LastMod.Format("20060102-150405.000"), ".", "")
 
-	formatExt := ".pb"
-	if wopt.Format == JSONFormat {
-		formatExt = ".json"
+	formatExt := ".json"
+	switch wopt.Format {
+	case ProtobufFormat:
+		formatExt = ".pb"
+	case CBORFormat:
+		formatExt = ".cbor"
 	}
 
 	var compressionSuffix string
-	if wopt.Compression == GZipCompression {
+	switch wopt.Compression {
+	case GZipCompression:
 		compressionSuffix = "z"
-	} else if wopt.Compression == FlateCompression {
+	case FlateCompression:
 		compressionSuffix = ".flate"
+	case ZstdCompression:
+		compressionSuffix = ".zst"
 	}
 
 	return "data-" + strconv.Itoa(m.Generation) + "-" + ts + formatExt + compressionSuffix

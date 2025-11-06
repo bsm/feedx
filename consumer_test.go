@@ -1,150 +1,160 @@
 package feedx_test
 
 import (
-	"context"
-	"io"
+	"reflect"
+	"testing"
 	"time"
 
 	"github.com/bsm/bfs"
 	"github.com/bsm/feedx"
-	"github.com/bsm/feedx/internal/testdata"
-	. "github.com/bsm/ginkgo/v2"
-	. "github.com/bsm/gomega"
 )
 
-var _ = Describe("Consumer", func() {
-	var subject feedx.Consumer
-	var obj *bfs.Object
-	var ctx = context.Background()
+func TestConsumer(t *testing.T) {
+	modTime := time.Unix(1515151515, 123456789)
 
-	consume := func(r *feedx.Reader) (interface{}, error) {
-		var msgs []*testdata.MockMessage
-		for {
-			var msg testdata.MockMessage
-			if err := r.Decode(&msg); err == io.EOF {
-				break
-			} else if err != nil {
-				return nil, err
-			}
-			msgs = append(msgs, &msg)
+	t.Run("consumes", func(t *testing.T) {
+		csm := fixConsumer(t, modTime)
+		if exp, got := csm.LastAttempt(), csm.LastSuccess(); exp != got {
+			t.Errorf("expected %v, got %v", exp, got)
 		}
-		return msgs, nil
+		testConsumer(t, csm, time.Now().Add(-time.Second), modTime, 2)
+	})
+
+	t.Run("not if not changed", func(t *testing.T) {
+		csm := fixConsumer(t, modTime)
+		prevAttempt := csm.LastAttempt()
+		time.Sleep(time.Millisecond)
+
+		if err := csm.(interface{ TestSync() error }).TestSync(); err != nil {
+			t.Fatal("unexpected error", err)
+		}
+		if exp, got := prevAttempt, csm.LastSuccess(); exp != got {
+			t.Errorf("expected %v, got %v", exp, got)
+		}
+		testConsumer(t, csm, prevAttempt, modTime, 2)
+	})
+
+	t.Run("always if no mtime", func(t *testing.T) {
+		csm := fixConsumer(t, time.Time{})
+		prevSuccess := csm.LastSuccess()
+		time.Sleep(time.Millisecond)
+
+		if err := csm.(interface{ TestSync() error }).TestSync(); err != nil {
+			t.Fatal("unexpected error", err)
+		}
+		if prev, cur := prevSuccess, csm.LastSuccess(); !prev.Before(cur) {
+			t.Errorf("expected %v to be > %v", cur, prev)
+		}
+		if exp, got := time.Unix(0, 0), csm.LastModified(); exp != got {
+			t.Errorf("expected %v, got %v", exp, got)
+		}
+	})
+}
+
+func TestIncrementalConsumer(t *testing.T) {
+	modTime := time.Unix(1515151515, 123456789)
+
+	t.Run("consumes", func(t *testing.T) {
+		csm := fixIncrementalConsumer(t, modTime)
+		if exp, got := csm.LastAttempt(), csm.LastSuccess(); exp != got {
+			t.Errorf("expected %v, got %v", exp, got)
+		}
+		testConsumer(t, csm, time.Now().Add(-time.Second), modTime, 4)
+	})
+
+	t.Run("not if not changed", func(t *testing.T) {
+		csm := fixIncrementalConsumer(t, modTime)
+		prevAttempt := csm.LastAttempt()
+		time.Sleep(time.Millisecond)
+
+		if err := csm.(interface{ TestSync() error }).TestSync(); err != nil {
+			t.Fatal("unexpected error", err)
+		}
+		if exp, got := prevAttempt, csm.LastSuccess(); exp != got {
+			t.Errorf("expected %v, got %v", exp, got)
+		}
+		testConsumer(t, csm, prevAttempt, modTime, 4)
+	})
+
+	t.Run("always if no mtime", func(t *testing.T) {
+		csm := fixIncrementalConsumer(t, time.Time{})
+		prevSuccess := csm.LastSuccess()
+		time.Sleep(time.Millisecond)
+
+		if err := csm.(interface{ TestSync() error }).TestSync(); err != nil {
+			t.Fatal("unexpected error", err)
+		}
+		if prev, cur := prevSuccess, csm.LastSuccess(); !prev.Before(cur) {
+			t.Errorf("expected %v to be > %v", cur, prev)
+		}
+		if exp, got := time.Unix(0, 0), csm.LastModified(); exp != got {
+			t.Errorf("expected %v, got %v", exp, got)
+		}
+	})
+}
+
+func fixConsumer(t *testing.T, modTime time.Time) feedx.Consumer {
+	t.Helper()
+
+	obj := bfs.NewInMemObject("path/to/file.json")
+	if err := writeN(obj, 2, modTime); err != nil {
+		t.Fatal("unexpected error", err)
+	}
+	csm, err := feedx.NewConsumerForRemote(t.Context(), obj, nil, func(r *feedx.Reader) (interface{}, error) {
+		return readMessages(r)
+	})
+	if err != nil {
+		t.Fatal("unexpected error", err)
+	}
+	t.Cleanup(func() { _ = csm.Close() })
+
+	return csm
+}
+
+func fixIncrementalConsumer(t *testing.T, modTime time.Time) feedx.Consumer {
+	t.Helper()
+
+	bucket := bfs.NewInMem()
+	dataFile := bfs.NewObjectFromBucket(bucket, "data-0-20230501-120023123.jsonz")
+	if err := writeN(dataFile, 2, modTime); err != nil {
+		t.Fatal("unexpected error", err)
 	}
 
-	Describe("NewConsumer", func() {
-		BeforeEach(func() {
-			obj = bfs.NewInMemObject("path/to/file.jsonz")
-			Expect(writeMulti(obj, 2, mockTime)).To(Succeed())
+	manifest := &feedx.Manifest{
+		LastModified: feedx.TimestampFromTime(modTime),
+		Files:        []string{dataFile.Name(), dataFile.Name()},
+	}
+	writer := feedx.NewWriter(t.Context(), bfs.NewObjectFromBucket(bucket, "manifest.json"), &feedx.WriterOptions{LastMod: modTime})
+	defer writer.Discard()
 
-			var err error
-			subject, err = feedx.NewConsumerForRemote(ctx, obj, nil, consume)
-			Expect(err).NotTo(HaveOccurred())
-		})
+	if err := writer.Encode(manifest); err != nil {
+		t.Fatal("unexpected error", err)
+	} else if err := writer.Commit(); err != nil {
+		t.Fatal("unexpected error", err)
+	}
 
-		AfterEach(func() {
-			Expect(subject.Close()).To(Succeed())
-		})
-
-		It("syncs/retrieves feeds from remote", func() {
-			Expect(subject.LastSync()).To(BeTemporally("~", time.Now(), time.Second))
-			Expect(subject.LastConsumed()).To(BeTemporally("==", subject.LastSync()))
-			Expect(subject.LastModified()).To(BeTemporally("==", mockTime.Truncate(time.Millisecond)))
-			Expect(subject.NumRead()).To(Equal(2))
-			Expect(subject.Data()).To(ConsistOf(seed(), seed()))
-			Expect(subject.Close()).To(Succeed())
-		})
-
-		It("consumes feeds only if necessary", func() {
-			prevSync := subject.LastSync()
-			time.Sleep(2 * time.Millisecond)
-
-			testable := subject.(interface{ TestSync() error })
-			Expect(testable.TestSync()).To(Succeed())
-			Expect(subject.LastSync()).To(BeTemporally(">", prevSync))
-			Expect(subject.LastConsumed()).To(BeTemporally("==", prevSync)) // skipped on last sync
-			Expect(subject.LastModified()).To(BeTemporally("==", mockTime.Truncate(time.Millisecond)))
-			Expect(subject.NumRead()).To(Equal(2))
-		})
-
-		It("always consumes if LastModified not set", func() {
-			noModTime := bfs.NewInMemObject("path/to/file.json")
-			Expect(writeMulti(noModTime, 2, time.Time{})).To(Succeed())
-
-			csmr, err := feedx.NewConsumerForRemote(ctx, noModTime, nil, consume)
-			Expect(err).NotTo(HaveOccurred())
-
-			prevSync := csmr.LastSync()
-			time.Sleep(2 * time.Millisecond)
-
-			testable := csmr.(interface{ TestSync() error })
-			Expect(testable.TestSync()).To(Succeed())
-			Expect(csmr.LastSync()).To(BeTemporally(">", prevSync))
-			Expect(csmr.LastConsumed()).To(BeTemporally("==", csmr.LastSync())) // consumed on last sync
-			Expect(csmr.LastModified()).To(BeTemporally("==", time.Unix(0, 0)))
-		})
+	csm, err := feedx.NewIncrementalConsumerForBucket(t.Context(), bucket, nil, func(r *feedx.Reader) (interface{}, error) {
+		return readMessages(r)
 	})
+	if err != nil {
+		t.Fatal("unexpected error", err)
+	}
+	t.Cleanup(func() { _ = csm.Close() })
 
-	Describe("NewIncrementalConsumer", func() {
-		BeforeEach(func() {
-			bucket := bfs.NewInMem()
-			dataFile := bfs.NewObjectFromBucket(bucket, "data-0-20230501-120023123.jsonz")
-			Expect(writeMulti(dataFile, 2, mockTime)).To(Succeed())
+	return csm
+}
 
-			manifest := &feedx.Manifest{
-				LastModified: feedx.TimestampFromTime(mockTime),
-				Files:        []string{dataFile.Name(), dataFile.Name()},
-			}
-			writer := feedx.NewWriter(ctx, bfs.NewObjectFromBucket(bucket, "manifest.json"), &feedx.WriterOptions{LastMod: mockTime})
-			defer writer.Discard()
-
-			Expect(writer.Encode(manifest)).To(Succeed())
-			Expect(writer.Commit()).To(Succeed())
-
-			var err error
-			subject, err = feedx.NewIncrementalConsumerForBucket(ctx, bucket, nil, consume)
-			Expect(err).NotTo(HaveOccurred())
-		})
-
-		AfterEach(func() {
-			Expect(subject.Close()).To(Succeed())
-		})
-
-		It("syncs/retrieves feeds from remote", func() {
-			Expect(subject.LastSync()).To(BeTemporally("~", time.Now(), time.Second))
-			Expect(subject.LastConsumed()).To(BeTemporally("==", subject.LastSync()))
-			Expect(subject.LastModified()).To(BeTemporally("==", mockTime.Truncate(time.Millisecond)))
-			Expect(subject.NumRead()).To(Equal(4))
-			Expect(subject.Data()).To(ConsistOf(seed(), seed(), seed(), seed()))
-			Expect(subject.Close()).To(Succeed())
-		})
-
-		It("consumes feeds only if necessary", func() {
-			prevSync := subject.LastSync()
-			time.Sleep(2 * time.Millisecond)
-
-			testable := subject.(interface{ TestSync() error })
-			Expect(testable.TestSync()).To(Succeed())
-			Expect(subject.LastSync()).To(BeTemporally(">", prevSync))
-			Expect(subject.LastConsumed()).To(BeTemporally("==", prevSync)) // skipped on last sync
-			Expect(subject.LastModified()).To(BeTemporally("==", mockTime.Truncate(time.Millisecond)))
-			Expect(subject.NumRead()).To(Equal(4))
-		})
-
-		It("always consumes if LastModified not set", func() {
-			noModTime := bfs.NewInMemObject("path/to/file.json")
-			Expect(writeMulti(noModTime, 2, time.Time{})).To(Succeed())
-
-			csmr, err := feedx.NewConsumerForRemote(ctx, noModTime, nil, consume)
-			Expect(err).NotTo(HaveOccurred())
-
-			prevSync := csmr.LastSync()
-			time.Sleep(2 * time.Millisecond)
-
-			testable := csmr.(interface{ TestSync() error })
-			Expect(testable.TestSync()).To(Succeed())
-			Expect(csmr.LastSync()).To(BeTemporally(">", prevSync))
-			Expect(csmr.LastConsumed()).To(BeTemporally("==", csmr.LastSync())) // consumed on last sync
-			Expect(csmr.LastModified()).To(BeTemporally("==", time.Unix(0, 0)))
-		})
-	})
-})
+func testConsumer(t *testing.T, csm feedx.Consumer, minLastAttempt, modTime time.Time, numRead int) {
+	if min, got := minLastAttempt, csm.LastAttempt(); !min.Before(got) {
+		t.Errorf("expected %v to be not before %v", got, min)
+	}
+	if exp, got := modTime.Truncate(time.Millisecond), csm.LastModified(); exp != got {
+		t.Errorf("expected %v, got %v", exp, got)
+	}
+	if exp, got := numRead, csm.NumRead(); exp != got {
+		t.Errorf("expected %v, got %v", exp, got)
+	}
+	if exp, got := seedN(numRead), csm.Data(); !reflect.DeepEqual(exp, got) {
+		t.Errorf("expected %#v, got %#v", exp, got)
+	}
+}

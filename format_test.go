@@ -2,75 +2,103 @@ package feedx_test
 
 import (
 	"bytes"
+	"errors"
 	"io"
+	"testing"
 
 	"github.com/bsm/feedx"
 	"github.com/bsm/feedx/internal/testdata"
-	. "github.com/bsm/ginkgo/v2"
-	. "github.com/bsm/gomega"
 )
 
-var _ = Describe("Format", func() {
-	runSharedTest := func(subject feedx.Format) {
-		buf := new(bytes.Buffer)
+func TestDetectFormat(t *testing.T) {
+	examples := []struct {
+		Input string
+		Exp   feedx.Format
+	}{
+		{Input: "/path/to/file.json", Exp: feedx.JSONFormat},
+		{Input: "/path/to/file.json.gz", Exp: feedx.JSONFormat},
+		{Input: "/path/to/file.json.flate", Exp: feedx.JSONFormat},
+		{Input: "/path/to/file.jsonz", Exp: feedx.JSONFormat},
 
-		enc, err := subject.NewEncoder(buf)
-		Expect(err).NotTo(HaveOccurred())
-		defer enc.Close()
+		{Input: "/path/to/file.pb", Exp: feedx.ProtobufFormat},
+		{Input: "/path/to/file.pb.gz", Exp: feedx.ProtobufFormat},
+		{Input: "/path/to/file.pb.flate", Exp: feedx.ProtobufFormat},
+		{Input: "/path/to/file.pbz", Exp: feedx.ProtobufFormat},
 
-		Expect(enc.Encode(seed())).To(Succeed())
-		Expect(enc.Encode(seed())).To(Succeed())
-		Expect(enc.Close()).To(Succeed())
+		{Input: "/path/to/file.cbor", Exp: feedx.CBORFormat},
+		{Input: "/path/to/file.cbor.gz", Exp: feedx.CBORFormat},
+		{Input: "/path/to/file.cbor.flate", Exp: feedx.CBORFormat},
+		{Input: "/path/to/file.cborz", Exp: feedx.CBORFormat},
 
-		dec, err := subject.NewDecoder(buf)
-		Expect(err).NotTo(HaveOccurred())
-		defer dec.Close()
+		{Input: "", Exp: (*feedx.NoFormat)(nil)},
+		{Input: "/path/to/file", Exp: (*feedx.NoFormat)(nil)},
+		{Input: "/path/to/file.txt", Exp: (*feedx.NoFormat)(nil)},
+	}
+	for _, x := range examples {
+		if got := feedx.DetectFormat(x.Input); got != x.Exp {
+			t.Errorf("expected %s for %q, but got %s", x.Exp, x.Input, got)
+		}
+	}
+}
 
-		v1 := new(testdata.MockMessage)
-		Expect(dec.Decode(v1)).To(Succeed())
-		Expect(v1.Name).To(Equal("Joe"))
+func TestFormat(t *testing.T) {
+	t.Run("json", func(t *testing.T) {
+		testFormat(t, feedx.JSONFormat)
+	})
+	t.Run("protobuf", func(t *testing.T) {
+		testFormat(t, feedx.ProtobufFormat)
+	})
+	t.Run("cbor", func(t *testing.T) {
+		testFormat(t, feedx.CBORFormat)
+	})
+}
 
-		v2 := new(testdata.MockMessage)
-		Expect(dec.Decode(v2)).To(Succeed())
-		Expect(v2.Name).To(Equal("Joe"))
+func testFormat(t *testing.T, f feedx.Format) {
+	t.Helper()
 
-		v3 := new(testdata.MockMessage)
-		Expect(dec.Decode(v3)).To(MatchError(io.EOF))
+	buf := new(bytes.Buffer)
+	enc, err := f.NewEncoder(buf)
+	if err != nil {
+		t.Fatal("expected no error, got", err)
+	}
+	defer func() { _ = enc.Close() }()
 
-		Expect(dec.Close()).To(Succeed())
+	if err := enc.Encode(seed()); err != nil {
+		t.Fatal("expected no error, got", err)
+	}
+	if err := enc.Encode(seed()); err != nil {
+		t.Fatal("expected no error, got", err)
+	}
+	if err := enc.Close(); err != nil {
+		t.Fatal("expected no error, got", err)
 	}
 
-	It("detects the format", func() {
-		Expect(feedx.DetectFormat("/path/to/file.json")).To(Equal(feedx.JSONFormat))
-		Expect(feedx.DetectFormat("/path/to/file.json.gz")).To(Equal(feedx.JSONFormat))
-		Expect(feedx.DetectFormat("/path/to/file.json.flate")).To(Equal(feedx.JSONFormat))
-		Expect(feedx.DetectFormat("/path/to/file.jsonz")).To(Equal(feedx.JSONFormat))
+	dec, err := f.NewDecoder(buf)
+	if err != nil {
+		t.Fatal("expected no error, got", err)
+	}
+	defer func() { _ = dec.Close() }()
 
-		Expect(feedx.DetectFormat("/path/to/file.pb")).To(Equal(feedx.ProtobufFormat))
-		Expect(feedx.DetectFormat("/path/to/file.pb.gz")).To(Equal(feedx.ProtobufFormat))
-		Expect(feedx.DetectFormat("/path/to/file.pb.flate")).To(Equal(feedx.ProtobufFormat))
-		Expect(feedx.DetectFormat("/path/to/file.pbz")).To(Equal(feedx.ProtobufFormat))
+	v1 := new(testdata.MockMessage)
+	if err := dec.Decode(v1); err != nil {
+		t.Fatal("expected no error, got", err)
+	} else if exp, got := "Joe", v1.Name; exp != got {
+		t.Errorf("expected %q, got %q", exp, got)
+	}
 
-		Expect(feedx.DetectFormat("")).To(BeNil())
-		Expect(feedx.DetectFormat("/path/to/file")).To(BeNil())
-		Expect(feedx.DetectFormat("/path/to/file.txt")).To(BeNil())
-	})
+	v2 := new(testdata.MockMessage)
+	if err := dec.Decode(v2); err != nil {
+		t.Fatal("expected no error, got", err)
+	} else if exp, got := "Joe", v2.Name; exp != got {
+		t.Errorf("expected %q, got %q", exp, got)
+	}
 
-	Describe("JSONFormat", func() {
-		var subject = feedx.JSONFormat
-		var _ feedx.Format = subject
+	v3 := new(testdata.MockMessage)
+	if err := dec.Decode(v3); !errors.Is(err, io.EOF) {
+		t.Error("expected EOF, got", err)
+	}
 
-		It("encodes/decodes", func() {
-			runSharedTest(subject)
-		})
-	})
-
-	Describe("ProtobufFormat", func() {
-		var subject = feedx.ProtobufFormat
-		var _ feedx.Format = subject
-
-		It("encodes/decodes", func() {
-			runSharedTest(subject)
-		})
-	})
-})
+	if err := dec.Close(); err != nil {
+		t.Fatal("expected no error, got", err)
+	}
+}

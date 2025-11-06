@@ -5,6 +5,8 @@ import (
 	"compress/gzip"
 	"io"
 	"path"
+
+	"github.com/klauspost/compress/zstd"
 )
 
 // Compression represents the data compression.
@@ -23,6 +25,8 @@ func DetectCompression(name string) Compression {
 			return GZipCompression
 		} else if ext == ".flate" {
 			return FlateCompression
+		} else if ext == ".zst" {
+			return ZstdCompression
 		}
 	}
 	return NoCompression
@@ -79,3 +83,28 @@ func (flateCompression) NewReader(r io.Reader) (io.ReadCloser, error) {
 func (flateCompression) NewWriter(w io.Writer) (io.WriteCloser, error) {
 	return flate.NewWriter(w, flate.BestSpeed)
 }
+
+// --------------------------------------------------------------------
+
+// ZstdCompression supports zstd compression format.
+var ZstdCompression = zstdCompression{}
+
+type zstdCompression struct{}
+
+func (zstdCompression) NewReader(r io.Reader) (io.ReadCloser, error) {
+	zr, err := zstd.NewReader(r)
+	if err != nil {
+		return nil, err
+	}
+	return zstdDecoder{Decoder: zr}, nil
+}
+
+func (zstdCompression) NewWriter(w io.Writer) (io.WriteCloser, error) {
+	return zstd.NewWriter(w)
+}
+
+type zstdDecoder struct {
+	*zstd.Decoder
+}
+
+func (zstdDecoder) Close() error { return nil }

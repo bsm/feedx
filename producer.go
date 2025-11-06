@@ -15,12 +15,12 @@ type ProduceFunc func(*Writer) error
 type LastModFunc func(context.Context) (time.Time, error)
 
 type producerState struct {
-	numWritten, lastPush, lastMod int64
+	numWritten, lastAttempt, lastMod int64
 }
 
-// LastPush returns time of last push attempt.
-func (p *producerState) LastPush() time.Time {
-	return timestamp(atomic.LoadInt64(&p.lastPush)).Time()
+// LastAttempt returns time of last push attempt.
+func (p *producerState) LastAttempt() time.Time {
+	return timestamp(atomic.LoadInt64(&p.lastAttempt)).Time()
 }
 
 // LastModified returns time at which the remote feed was last modified.
@@ -33,8 +33,8 @@ func (p *producerState) NumWritten() int {
 	return int(atomic.LoadInt64(&p.numWritten))
 }
 
-func (p *producerState) updateLastPush(t time.Time) {
-	atomic.StoreInt64(&p.lastPush, timestampFromTime(t).Millis())
+func (p *producerState) updateLastAttempt(t time.Time) {
+	atomic.StoreInt64(&p.lastAttempt, timestampFromTime(t).Millis())
 }
 
 func (p *producerState) updateLastModified(t time.Time) {
@@ -145,7 +145,7 @@ func (p *Producer) Close() error {
 
 func (p *Producer) push() (*ProducerPush, error) {
 	start := time.Now()
-	p.producerState.updateLastPush(start)
+	p.updateLastAttempt(start)
 
 	// setup write options
 	wopt := p.opt.WriterOptions
@@ -176,8 +176,8 @@ func (p *Producer) push() (*ProducerPush, error) {
 		return nil, err
 	}
 
-	p.producerState.updateNumWritten(writer.NumWritten())
-	p.producerState.updateLastModified(wopt.LastMod)
+	p.updateNumWritten(writer.NumWritten())
+	p.updateLastModified(wopt.LastMod)
 
 	return &ProducerPush{
 		producerState: p.producerState,

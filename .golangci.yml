@@ -1,4 +1,6 @@
-linters-settings:
-  errcheck:
-    exclude-functions:
-      - (*github.com/bsm/feedx.Writer).Discard
+version: "2"
+linters:
+  settings:
+    errcheck:
+      exclude-functions:
+        - (*github.com/bsm/feedx.Writer).Discard

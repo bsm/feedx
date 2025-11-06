@@ -2,27 +2,13 @@ package feedx_test
 
 import (
 	"context"
-	"net/url"
-	"testing"
+	"io"
 	"time"
 
 	"github.com/bsm/bfs"
 	"github.com/bsm/feedx"
 	"github.com/bsm/feedx/internal/testdata"
-	. "github.com/bsm/ginkgo/v2"
-	. "github.com/bsm/gomega"
 )
-
-var memStore *bfs.InMem
-
-func init() {
-	memStore = bfs.NewInMem()
-	bfs.Register("mem", func(_ context.Context, u *url.URL) (bfs.Bucket, error) {
-		return memStore, nil
-	})
-}
-
-// ------------------------------------------------------------------------
 
 func seed() *testdata.MockMessage {
 	return &testdata.MockMessage{
@@ -32,11 +18,15 @@ func seed() *testdata.MockMessage {
 	}
 }
 
-var mockTime = time.Unix(1515151515, 123456789)
+func seedN(n int) []*testdata.MockMessage {
+	res := make([]*testdata.MockMessage, 0, n)
+	for i := 0; i < n; i++ {
+		res = append(res, seed())
+	}
+	return res
+}
 
-// ------------------------------------------------------------------------
-
-func writeMulti(obj *bfs.Object, numEntries int, lastMod time.Time) error {
+func writeN(obj *bfs.Object, numEntries int, lastMod time.Time) error {
 	w := feedx.NewWriter(context.Background(), obj, &feedx.WriterOptions{LastMod: lastMod})
 	defer w.Discard()
 
@@ -48,9 +38,18 @@ func writeMulti(obj *bfs.Object, numEntries int, lastMod time.Time) error {
 	return w.Commit()
 }
 
-// ------------------------------------------------------------------------
-
-func TestSuite(t *testing.T) {
-	RegisterFailHandler(Fail)
-	RunSpecs(t, "feedx")
+func readMessages(r interface{ Decode(any) error }) ([]*testdata.MockMessage, error) {
+	var msgs []*testdata.MockMessage
+	for {
+		var msg testdata.MockMessage
+		err := r.Decode(&msg)
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			return nil, err
+		}
+		msgs = append(msgs, &msg)
+	}
+	return msgs, nil
 }

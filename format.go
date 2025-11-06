@@ -8,6 +8,7 @@ import (
 	"path"
 
 	"github.com/bsm/pbio"
+	"github.com/fxamacker/cbor/v2"
 	"google.golang.org/protobuf/proto"
 )
 
@@ -30,6 +31,8 @@ func DetectFormat(name string) Format {
 		return JSONFormat
 	case ".pb", ".proto", ".protobuf":
 		return ProtobufFormat
+	case ".cbor":
+		return CBORFormat
 	default:
 		if name != "" && ext != "" && ext[0] == '.' {
 			if ext[len(ext)-1] == 'z' {
@@ -142,3 +145,28 @@ func (w *protobufWrapper) Encode(v interface{}) error {
 func (*protobufWrapper) Close() error {
 	return nil
 }
+
+// --------------------------------------------------------------------
+
+// CBORFormat provides a Format implemention for CBOR.
+var CBORFormat = cborFormat{}
+
+type cborFormat struct{}
+
+// NewDecoder implements Format.
+func (cborFormat) NewDecoder(r io.Reader) (FormatDecoder, error) {
+	return cborDecoderWrapper{Decoder: cbor.NewDecoder(r)}, nil
+}
+
+// NewEncoder implements Format.
+func (cborFormat) NewEncoder(w io.Writer) (FormatEncoder, error) {
+	return cborEncoderWrapper{Encoder: cbor.NewEncoder(w)}, nil
+}
+
+type cborDecoderWrapper struct{ *cbor.Decoder }
+
+func (cborDecoderWrapper) Close() error { return nil }
+
+type cborEncoderWrapper struct{ *cbor.Encoder }
+
+func (cborEncoderWrapper) Close() error { return nil }
