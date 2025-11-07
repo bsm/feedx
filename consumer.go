@@ -49,7 +49,7 @@ type Consumer interface {
 	Data() interface{}
 	// LastAttempt returns the time of last sync attempt.
 	LastAttempt() time.Time
-	// LastSuccess returns the time of last successful  .
+	// LastSuccess returns the time of last successful sync.
 	LastSuccess() time.Time
 	// LastModified returns the time at which the remote feed was last modified.
 	LastModified() time.Time
