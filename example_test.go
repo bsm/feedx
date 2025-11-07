@@ -67,7 +67,7 @@ func ExampleConsumer() {
 	// DATA   [map[completed:false id:1 title:foo] map[completed:false id:2 title:bar]]
 }
 
-func ExampleSchedule() {
+func ExampleScheduler() {
 	ctx := context.TODO()
 
 	// create an mock object

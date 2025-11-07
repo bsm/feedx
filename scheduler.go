@@ -12,8 +12,8 @@ type BeforeConsumeHook func() bool
 // AfterConsumeHook functions are run after consume jobs are finished.
 type AfterConsumeHook func(*ConsumeStatus, error)
 
-// Schedule runs jobs in regular intervals.
-type Schedule struct {
+// Scheduler runs cronjobs in regular intervals.
+type Scheduler struct {
 	ctx           context.Context
 	interval      time.Duration
 	readerOptions *ReaderOptions
@@ -23,38 +23,38 @@ type Schedule struct {
 	afterConsume  []AfterConsumeHook
 }
 
-// Every creates a periodic schedule.
-func Every(interval time.Duration) *Schedule {
-	return &Schedule{ctx: context.Background(), interval: interval}
+// Every creates a scheduler.
+func Every(interval time.Duration) *Scheduler {
+	return &Scheduler{ctx: context.Background(), interval: interval}
 }
 
 // WithContext sets a custom context for the run.
-func (s *Schedule) WithContext(ctx context.Context) *Schedule {
+func (s *Scheduler) WithContext(ctx context.Context) *Scheduler {
 	s.ctx = ctx
 	return s
 }
 
 // WithReaderOptions sets custom reader options for consumers.
-func (s *Schedule) WithReaderOptions(opt *ReaderOptions) *Schedule {
+func (s *Scheduler) WithReaderOptions(opt *ReaderOptions) *Scheduler {
 	s.readerOptions = opt
 	return s
 }
 
 // BeforeConsume adds custom hooks.
-func (s *Schedule) BeforeConsume(hooks ...BeforeConsumeHook) *Schedule {
+func (s *Scheduler) BeforeConsume(hooks ...BeforeConsumeHook) *Scheduler {
 	s.beforeConsume = append(s.beforeConsume, hooks...)
 	return s
 }
 
 // AfterConsume adds custom hooks.
-func (s *Schedule) AfterConsume(hooks ...AfterConsumeHook) *Schedule {
+func (s *Scheduler) AfterConsume(hooks ...AfterConsumeHook) *Scheduler {
 	s.afterConsume = append(s.afterConsume, hooks...)
 	return s
 }
 
 // Consume starts  consumer job.
-func (s *Schedule) Consume(csm Consumer, cfn ConsumeFunc) *Job {
-	return newJob(s.ctx, s.interval, func(ctx context.Context) {
+func (s *Scheduler) Consume(csm Consumer, cfn ConsumeFunc) *CronJob {
+	return newCronJob(s.ctx, s.interval, func(ctx context.Context) {
 		for _, hook := range s.beforeConsume {
 			if !hook() {
 				return
@@ -68,18 +68,18 @@ func (s *Schedule) Consume(csm Consumer, cfn ConsumeFunc) *Job {
 	})
 }
 
-// Job runs in regular intervals and can be stopped.
-type Job struct {
+// CronJob runs in regular intervals until it's stopped.
+type CronJob struct {
 	ctx      context.Context
 	cancel   context.CancelFunc
 	interval time.Duration
 	perform  func(context.Context)
 }
 
-func newJob(ctx context.Context, interval time.Duration, perform func(context.Context)) *Job {
+func newCronJob(ctx context.Context, interval time.Duration, perform func(context.Context)) *CronJob {
 	ctx, cancel := context.WithCancel(ctx)
 
-	job := &Job{ctx: ctx, cancel: cancel, interval: interval, perform: perform}
+	job := &CronJob{ctx: ctx, cancel: cancel, interval: interval, perform: perform}
 	job.perform(ctx) // perform immediately
 
 	go job.loop()
@@ -87,11 +87,11 @@ func newJob(ctx context.Context, interval time.Duration, perform func(context.Co
 }
 
 // Stop stops the job.
-func (j *Job) Stop() {
+func (j *CronJob) Stop() {
 	j.cancel()
 }
 
-func (j *Job) loop() {
+func (j *CronJob) loop() {
 	ticker := time.NewTicker(j.interval)
 	defer ticker.Stop()
 
