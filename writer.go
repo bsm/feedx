@@ -3,6 +3,7 @@ package feedx
 import (
 	"bufio"
 	"context"
+	"errors"
 	"io"
 	"strconv"
 
@@ -109,7 +110,7 @@ func (w *Writer) Discard() error {
 	err := w.close()
 	if w.bw != nil {
 		if e := w.bw.Discard(); e != nil {
-			err = e
+			err = errors.Join(err, e)
 		}
 	}
 	return err
@@ -120,7 +121,7 @@ func (w *Writer) Commit() error {
 	err := w.close()
 	if w.bw != nil {
 		if e := w.bw.Commit(); e != nil {
-			err = e
+			err = errors.Join(err, e)
 		}
 	}
 	return err
@@ -129,17 +130,17 @@ func (w *Writer) Commit() error {
 func (w *Writer) close() (err error) {
 	if w.fe != nil {
 		if e := w.fe.Close(); e != nil {
-			err = e
+			err = errors.Join(err, e)
 		}
 	}
 	if w.ww != nil {
 		if e := w.ww.Flush(); e != nil {
-			err = e
+			err = errors.Join(err, e)
 		}
 	}
 	if w.cw != nil {
 		if e := w.cw.Close(); e != nil {
-			err = e
+			err = errors.Join(err, e)
 		}
 	}
 	return err

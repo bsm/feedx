@@ -2,6 +2,7 @@ package feedx
 
 import (
 	"context"
+	"errors"
 	"time"
 
 	"github.com/bsm/bfs"
@@ -94,12 +95,12 @@ func NewIncrementalProducerForBucket(ctx context.Context, bucket bfs.Bucket, opt
 func (p *IncrementalProducer) Close() (err error) {
 	p.stop()
 	if e := p.manifest.Close(); e != nil {
-		err = e
+		err = errors.Join(err, e)
 	}
 
 	if p.ownBucket {
 		if e := p.bucket.Close(); e != nil {
-			err = e
+			err = errors.Join(err, e)
 		}
 	}
 	return

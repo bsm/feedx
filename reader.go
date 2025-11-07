@@ -123,7 +123,7 @@ func (r *Reader) Close() (err error) {
 	if r.ownRemotes {
 		for _, remote := range r.remotes {
 			if e := remote.Close(); e != nil {
-				err = e
+				err = errors.Join(err, e)
 			}
 		}
 	}
@@ -203,17 +203,17 @@ func (r *streamReader) Close() error {
 	var err error
 	if r.fd != nil {
 		if e := r.fd.Close(); e != nil {
-			err = e
+			err = errors.Join(err, e)
 		}
 	}
 	if r.cr != nil {
 		if e := r.cr.Close(); e != nil {
-			err = e
+			err = errors.Join(err, e)
 		}
 	}
 	if r.br != nil {
 		if e := r.br.Close(); e != nil {
-			err = e
+			err = errors.Join(err, e)
 		}
 	}
 	return err

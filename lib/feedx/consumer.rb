@@ -17,7 +17,7 @@ module Feedx
     # @param [Hash] opts options
     # @option opts [Symbol,Class<Feedx::Format::Abstract>] :format custom formatter. Default: from file extension.
     # @option opts [Symbol,Class<Feedx::Compression::Abstract>] :compress enable compression. Default: from file extension.
-    # @option opts [Feedx::Cache::Value] :cache cache value to store remote last modified time and consume conditionally.
+    # @option opts [Feedx::Cache::Value] :cache cache value to store remote version and consume conditionally.
     def initialize(url, klass, format_options: {}, cache: nil, **opts)
       @klass = klass
       @url = url

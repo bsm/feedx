@@ -2,6 +2,7 @@ package feedx
 
 import (
 	"context"
+	"errors"
 	"sync/atomic"
 
 	"github.com/bsm/bfs"
@@ -32,7 +33,6 @@ type Consumer interface {
 	// Version indicates the most recently consumed version.
 	Version() int64
 
-	// LastModTime returns the feed last consumed ModTime.
 	// Close stops the underlying sync process.
 	Close() error
 }
@@ -136,13 +136,13 @@ func (c *consumer) Version() int64 {
 func (c *consumer) Close() (err error) {
 	if c.ownRemote && c.remote != nil {
 		if e := c.remote.Close(); e != nil {
-			err = e
+			err = errors.Join(err, e)
 		}
 		c.remote = nil
 	}
 	if c.ownBucket && c.bucket != nil {
 		if e := c.bucket.Close(); e != nil {
-			err = e
+			err = errors.Join(err, e)
 		}
 		c.bucket = nil
 	}
