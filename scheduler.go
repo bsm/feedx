@@ -2,6 +2,7 @@ package feedx
 
 import (
 	"context"
+	"sync"
 	"time"
 )
 
@@ -74,6 +75,7 @@ type CronJob struct {
 	cancel   context.CancelFunc
 	interval time.Duration
 	perform  func(context.Context)
+	wait     sync.WaitGroup
 }
 
 func newCronJob(ctx context.Context, interval time.Duration, perform func(context.Context)) *CronJob {
@@ -82,16 +84,20 @@ func newCronJob(ctx context.Context, interval time.Duration, perform func(contex
 	job := &CronJob{ctx: ctx, cancel: cancel, interval: interval, perform: perform}
 	job.perform(ctx) // perform immediately
 
+	job.wait.Add(1)
 	go job.loop()
 	return job
 }
 
-// Stop stops the job.
+// Stop stops the job and waits until it is complete.
 func (j *CronJob) Stop() {
 	j.cancel()
+	j.wait.Wait()
 }
 
 func (j *CronJob) loop() {
+	defer j.wait.Done()
+
 	ticker := time.NewTicker(j.interval)
 	defer ticker.Stop()
 
