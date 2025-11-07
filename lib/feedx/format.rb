@@ -29,7 +29,7 @@ module Feedx
           kind = _resolve(ext[1..]) || _resolve(ext[1..-2])
           return kind if kind
 
-          base = base[0..-ext.size - 1]
+          base = base[0..(-ext.size - 1)]
         end
       end
 

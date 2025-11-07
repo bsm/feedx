@@ -13,8 +13,8 @@ class Feedx::Format::JSON < Feedx::Format::Abstract
   end
 
   class Encoder < Feedx::Format::Abstract::Encoder
-    def encode(msg, **opts)
-      @io.write msg.to_json(**opts) << "\n"
+    def encode(msg, **)
+      @io.write msg.to_json(**) << "\n"
     end
   end
 end

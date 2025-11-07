@@ -1,17 +1,11 @@
-inherit_gem:
-  rubocop-bsm:
-    - default.yml
+plugins:
+  - rubocop-rake
+  - rubocop-rspec
+
+inherit_from:
+  - https://raw.githubusercontent.com/bsm/misc/refs/heads/main/rubocop/default.yml
+  - https://raw.githubusercontent.com/bsm/misc/refs/heads/main/rubocop/rspec.yml
+
 inherit_mode:
   merge:
     - Exclude
-
-AllCops:
-  TargetRubyVersion: 2.7
-Naming/MethodParameterName:
-  MinNameLength: 2
-Naming/MemoizedInstanceVariableName:
-  Enabled: false
-Naming/FileName:
-  Exclude: [lib/sortable-by.rb]
-Metrics/ParameterLists:
-  Max: 8

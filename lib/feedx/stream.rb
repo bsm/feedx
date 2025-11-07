@@ -8,8 +8,8 @@ module Feedx
 
     # Behaves like new, but accepts an optional block.
     # If a block is given, streams are automatically closed after the block is yielded.
-    def self.open(url, **opts)
-      stream = new(url, **opts)
+    def self.open(url, **)
+      stream = new(url, **)
       return stream unless block_given?
 
       begin

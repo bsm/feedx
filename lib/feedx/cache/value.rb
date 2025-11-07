@@ -8,18 +8,18 @@ class Feedx::Cache::Value
   end
 
   # Read the key.
-  def read(**opts)
-    @cache.read(@key, **opts)
+  def read(**)
+    @cache.read(@key, **)
   end
 
   # Write a value.
-  def write(value, **opts)
-    @cache.write(@key, value, **opts)
+  def write(value, **)
+    @cache.write(@key, value, **)
   end
 
   # Fetches data. The optional block will be evaluated and the
   # result stored in the cache under the key in the event of a cache miss.
-  def fetch(**opts, &block)
-    @cache.fetch(@key, **opts, &block)
+  def fetch(**, &)
+    @cache.fetch(@key, **, &)
   end
 end
