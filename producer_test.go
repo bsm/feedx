@@ -3,77 +3,98 @@ package feedx_test
 import (
 	"context"
 	"sync/atomic"
+	"testing"
 	"time"
 
 	"github.com/bsm/bfs"
 	"github.com/bsm/feedx"
-	. "github.com/bsm/ginkgo/v2"
-	. "github.com/bsm/gomega"
 )
 
-var _ = Describe("Producer", func() {
-	var subject *feedx.Producer
-	var obj *bfs.Object
-	var numRuns uint32
-	var ctx = context.Background()
+func TestProducer(t *testing.T) {
+	numRuns := new(atomic.Int32)
 
-	setup := func(o *feedx.ProducerOptions) {
-		var err error
-		subject, err = feedx.NewProducerForRemote(ctx, obj, o, func(w *feedx.Writer) error {
-			atomic.AddUint32(&numRuns, 1)
+	t.Run("default", func(t *testing.T) {
+		p, _ := testProducer(t, nil, numRuns)
+		defer func() { _ = p.Close() }()
 
-			for i := 0; i < 10; i++ {
-				if err := w.Encode(seed()); err != nil {
-					return err
-				}
-			}
-			return nil
-		})
-		Expect(err).NotTo(HaveOccurred())
-	}
+		if dur := time.Since(p.LastModified()); dur > time.Second {
+			t.Errorf("expected to be recent, but was %s ago", dur)
+		}
 
-	BeforeEach(func() {
-		atomic.StoreUint32(&numRuns, 0)
-		obj = bfs.NewInMemObject("path/to/file.jsonz")
-	})
-
-	AfterEach(func() {
-		if subject != nil {
-			Expect(subject.Close()).To(Succeed())
+		if err := p.Close(); err != nil {
+			t.Fatal("unexpected error", err)
 		}
 	})
 
-	It("produces", func() {
-		setup(nil)
-
-		Expect(subject.LastPush()).To(BeTemporally("~", time.Now(), time.Second))
-		Expect(subject.LastModified()).To(BeTemporally("~", time.Now(), time.Second))
-		Expect(subject.NumWritten()).To(Equal(10))
-		Expect(subject.Close()).To(Succeed())
-
-		info, err := obj.Head(ctx)
-		Expect(err).NotTo(HaveOccurred())
-		Expect(info.Size).To(BeNumerically("~", 75, 10))
-	})
-
-	It("produces with custom last-mod check", func() {
-		setup(&feedx.ProducerOptions{
-			Interval:     50 * time.Millisecond,
+	t.Run("custom last-mod-check", func(t *testing.T) {
+		opt := &feedx.ProducerOptions{
+			Interval:     5 * time.Millisecond,
 			LastModCheck: func(_ context.Context) (time.Time, error) { return time.Unix(1515151515, 987654321), nil },
-		})
+		}
 
-		firstPush := subject.LastPush()
-		Expect(firstPush).To(BeTemporally("~", time.Now(), time.Second))
-		Expect(subject.LastModified()).To(Equal(time.Unix(1515151515, 987000000)))
-		Expect(subject.NumWritten()).To(Equal(10))
-		Expect(atomic.LoadUint32(&numRuns)).To(Equal(uint32(1)))
+		p, info := testProducer(t, opt, numRuns)
+		if exp, got := time.Unix(1515151515, 987000000), p.LastModified(); exp != got {
+			t.Errorf("expected %v, got %v", exp, got)
+		}
+		if exp, got := "1515151515987", info.Metadata.Get("X-Feedx-Last-Modified"); exp != got {
+			t.Errorf("expected %v, got %v", exp, got)
+		}
 
-		info, err := obj.Head(ctx)
-		Expect(err).NotTo(HaveOccurred())
-		Expect(info.Size).To(BeNumerically("~", 75, 10))
-		Expect(info.Metadata).To(HaveKeyWithValue("X-Feedx-Last-Modified", "1515151515987"))
+		lastAttempt := p.LastAttempt()
+		runCount := numRuns.Load()
 
-		Eventually(func() bool { return subject.LastPush().After(firstPush) }).Should(BeTrue())
-		Expect(atomic.LoadUint32(&numRuns)).To(Equal(uint32(1)))
+		for i := 0; i < 20; i++ {
+			if numRuns.Load() > runCount {
+				break
+			}
+			time.Sleep(time.Millisecond)
+		}
+
+		if dur := p.LastAttempt().Sub(lastAttempt); dur < opt.Interval {
+			t.Errorf("expected interval between runs to be %v, but was %v", opt.Interval, dur)
+		}
+
+		if err := p.Close(); err != nil {
+			t.Fatal("unexpected error", err)
+		}
 	})
-})
+}
+
+func testProducer(t *testing.T, opt *feedx.ProducerOptions, numRuns *atomic.Int32) (*feedx.Producer, *bfs.MetaInfo) {
+	obj := bfs.NewInMemObject("path/to/file.json")
+	runCount := numRuns.Load()
+
+	p, err := feedx.NewProducerForRemote(t.Context(), obj, opt, func(w *feedx.Writer) error {
+		numRuns.Add(1)
+
+		for i := 0; i < 10; i++ {
+			if err := w.Encode(seed()); err != nil {
+				return err
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		t.Fatal("unexpected error", err)
+	}
+	t.Cleanup(func() { _ = p.Close() })
+
+	if exp, got := runCount+1, numRuns.Load(); exp != got {
+		t.Errorf("expected %v, got %v", exp, got)
+	}
+	if dur := time.Since(p.LastAttempt()); dur > time.Second {
+		t.Errorf("expected to be recent, but was %s ago", dur)
+	}
+	if exp, got := 10, p.NumWritten(); exp != got {
+		t.Errorf("expected %v, got %v", exp, got)
+	}
+
+	info, err := obj.Head(t.Context())
+	if err != nil {
+		t.Fatal("unexpected error", err)
+	} else if exp, got := int64(370), info.Size; exp != got {
+		t.Errorf("expected %v, got %v", exp, got)
+	}
+
+	return p, info
+}

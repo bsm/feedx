@@ -6,8 +6,8 @@ module Feedx
   # Produces a relation as an encoded feed to a remote location.
   class Producer
     # See constructor.
-    def self.perform(url, **opts, &block)
-      new(url, **opts, &block).perform
+    def self.perform(url, **, &)
+      new(url, **, &).perform
     end
 
     # @param [String] url the destination URL.

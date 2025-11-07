@@ -8,8 +8,8 @@ module Feedx
     include Enumerable
 
     # See constructor.
-    def self.each(url, klass, **opts, &block)
-      new(url, klass, **opts).each(&block)
+    def self.each(url, klass, **, &)
+      new(url, klass, **).each(&)
     end
 
     # @param [String] url the destination URL.

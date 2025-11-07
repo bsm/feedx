@@ -17,12 +17,12 @@ class Feedx::Cache::Abstract
   # Fetches data from the cache, using the given key.
   # The optional block will be evaluated and the result stored in the cache
   # in the event of a cache miss.
-  def fetch(key, **opts)
-    value = read(key, **opts)
+  def fetch(key, **)
+    value = read(key, **)
 
     if block_given?
       value ||= yield
-      write(key, value, **opts) if value
+      write(key, value, **) if value
     end
 
     value

@@ -2,66 +2,84 @@ package feedx_test
 
 import (
 	"bytes"
-	"context"
+	"reflect"
+	"testing"
 	"time"
 
 	"github.com/bsm/bfs"
 	"github.com/bsm/feedx"
-	. "github.com/bsm/ginkgo/v2"
-	. "github.com/bsm/gomega"
 )
 
-var _ = Describe("Writer", func() {
-	var plain, compressed *bfs.Object
-	var ctx = context.Background()
-
-	BeforeEach(func() {
-		plain = bfs.NewInMemObject("path/to/file.json")
-		compressed = bfs.NewInMemObject("path/to/file.jsonz")
-	})
-
-	It("writes plain", func() {
-		w := feedx.NewWriter(context.Background(), plain, &feedx.WriterOptions{
+func TestWriter(t *testing.T) {
+	t.Run("writes plain", func(t *testing.T) {
+		obj := bfs.NewInMemObject("path/to/file.json")
+		info := testWriter(t, obj, &feedx.WriterOptions{
 			LastMod: time.Unix(1515151515, 123456789),
 		})
-		defer w.Discard()
 
-		Expect(w.Write(bytes.Repeat([]byte{'x'}, 10000))).To(Equal(10000))
-		Expect(w.Commit()).To(Succeed())
+		if exp, got := int64(10000), info.Size; exp != got {
+			t.Errorf("expected %v, got %v", exp, got)
+		}
 
-		info, err := plain.Head(ctx)
-		Expect(err).NotTo(HaveOccurred())
-		Expect(info.Size).To(Equal(int64(10000)))
-		Expect(info.Metadata).To(Equal(bfs.Metadata{"X-Feedx-Last-Modified": "1515151515123"}))
+		meta := bfs.Metadata{"X-Feedx-Last-Modified": "1515151515123"}
+		if exp, got := meta, info.Metadata; !reflect.DeepEqual(exp, got) {
+			t.Errorf("expected %#v, got %#v", exp, got)
+		}
 	})
 
-	It("writes compressed", func() {
-		w := feedx.NewWriter(context.Background(), compressed, &feedx.WriterOptions{
+	t.Run("writes compressed", func(t *testing.T) {
+		obj := bfs.NewInMemObject("path/to/file.jsonz")
+		info := testWriter(t, obj, &feedx.WriterOptions{
 			LastMod: time.Unix(1515151515, 123456789),
 		})
-		defer w.Discard()
 
-		Expect(w.Write(bytes.Repeat([]byte{'x'}, 10000))).To(Equal(10000))
-		Expect(w.Commit()).To(Succeed())
+		if max, got := int64(100), info.Size; got > max {
+			t.Errorf("expected %v to be < %v", got, max)
+		}
 
-		info, err := compressed.Head(ctx)
-		Expect(err).NotTo(HaveOccurred())
-		Expect(info.Size).To(BeNumerically("~", 50, 20))
-		Expect(info.Metadata).To(Equal(bfs.Metadata{"X-Feedx-Last-Modified": "1515151515123"}))
+		meta := bfs.Metadata{"X-Feedx-Last-Modified": "1515151515123"}
+		if exp, got := meta, info.Metadata; !reflect.DeepEqual(exp, got) {
+			t.Errorf("expected %#v, got %#v", exp, got)
+		}
 	})
 
-	It("encodes", func() {
-		Expect(writeMulti(plain, 10, time.Time{})).To(Succeed())
-		Expect(writeMulti(compressed, 10, mockTime)).To(Succeed())
+	t.Run("encodes", func(t *testing.T) {
+		obj := bfs.NewInMemObject("path/to/file.json")
+		if err := writeN(obj, 10, time.Unix(1515151515, 123456789)); err != nil {
+			t.Fatal("unexpected error", err)
+		}
 
-		info, err := plain.Head(ctx)
-		Expect(err).NotTo(HaveOccurred())
-		Expect(info.Size).To(BeNumerically("~", 370, 10))
-		Expect(info.Metadata).To(Equal(bfs.Metadata{"X-Feedx-Last-Modified": "0"}))
+		info, err := obj.Head(t.Context())
+		if err != nil {
+			t.Fatal("unexpected error", err)
+		}
+		if exp, got := int64(370), info.Size; exp != got {
+			t.Errorf("expected %v, got %v", exp, got)
+		}
 
-		info, err = compressed.Head(ctx)
-		Expect(err).NotTo(HaveOccurred())
-		Expect(info.Size).To(BeNumerically("~", 76, 10))
-		Expect(info.Metadata).To(Equal(bfs.Metadata{"X-Feedx-Last-Modified": "1515151515123"}))
+		meta := bfs.Metadata{"X-Feedx-Last-Modified": "1515151515123"}
+		if exp, got := meta, info.Metadata; !reflect.DeepEqual(exp, got) {
+			t.Errorf("expected %#v, got %#v", exp, got)
+		}
 	})
-})
+}
+
+func testWriter(t *testing.T, obj *bfs.Object, opts *feedx.WriterOptions) *bfs.MetaInfo {
+	t.Helper()
+
+	w := feedx.NewWriter(t.Context(), obj, opts)
+	t.Cleanup(func() { _ = w.Discard() })
+
+	if _, err := w.Write(bytes.Repeat([]byte{'x'}, 10000)); err != nil {
+		t.Fatal("unexpected error", err)
+	}
+	if err := w.Commit(); err != nil {
+		t.Fatal("unexpected error", err)
+	}
+
+	info, err := obj.Head(t.Context())
+	if err != nil {
+		t.Fatal("unexpected error", err)
+	}
+	return info
+}

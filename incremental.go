@@ -124,7 +124,7 @@ func (p *IncrementalProducer) loop() {
 
 func (p *IncrementalProducer) push() (*ProducerPush, error) {
 	start := time.Now()
-	p.producerState.updateLastPush(start)
+	p.updateLastAttempt(start)
 
 	// get last mod time for local records
 	localLastMod, err := p.opt.LastModCheck(p.ctx)
@@ -160,8 +160,8 @@ func (p *IncrementalProducer) push() (*ProducerPush, error) {
 		return nil, err
 	}
 
-	p.producerState.updateNumWritten(numWritten)
-	p.producerState.updateLastModified(wopt.LastMod)
+	p.updateNumWritten(numWritten)
+	p.updateLastModified(wopt.LastMod)
 	return &ProducerPush{producerState: p.producerState, Updated: true}, nil
 }
 

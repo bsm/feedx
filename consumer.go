@@ -47,13 +47,13 @@ type ConsumeFunc func(*Reader) (data interface{}, err error)
 type Consumer interface {
 	// Data returns the data as returned by ConsumeFunc on last sync.
 	Data() interface{}
-	// LastSync returns time of last sync attempt.
-	LastSync() time.Time
-	// LastConsumed returns time of last feed consumption.
-	LastConsumed() time.Time
-	// LastModified returns time at which the remote feed was last modified.
+	// LastAttempt returns the time of last sync attempt.
+	LastAttempt() time.Time
+	// LastSuccess returns the time of last successful sync.
+	LastSuccess() time.Time
+	// LastModified returns the time at which the remote feed was last modified.
 	LastModified() time.Time
-	// NumRead returns the number of values consumed during the last sync.
+	// NumRead returns the number of values consumed during the last successful attempt.
 	NumRead() int
 	// Close stops the underlying sync process.
 	Close() error
@@ -146,8 +146,9 @@ type consumer struct {
 	opt ConsumerOptions
 	cfn ConsumeFunc
 
-	data                                     atomic.Value
-	numRead, lastMod, lastSync, lastConsumed int64
+	data atomic.Value
+
+	numRead, lastMod, lastAttempt, lastSuccess int64
 }
 
 // Data implements Consumer interface.
@@ -160,14 +161,14 @@ func (c *consumer) NumRead() int {
 	return int(atomic.LoadInt64(&c.numRead))
 }
 
-// LastSync implements Consumer interface.
-func (c *consumer) LastSync() time.Time {
-	return timestamp(atomic.LoadInt64(&c.lastSync)).Time()
+// LastAttempt implements Consumer interface.
+func (c *consumer) LastAttempt() time.Time {
+	return timestamp(atomic.LoadInt64(&c.lastAttempt)).Time()
 }
 
-// LastConsumed implements Consumer interface.
-func (c *consumer) LastConsumed() time.Time {
-	return timestamp(atomic.LoadInt64(&c.lastConsumed)).Time()
+// LastSuccess implements Consumer interface.
+func (c *consumer) LastSuccess() time.Time {
+	return timestamp(atomic.LoadInt64(&c.lastSuccess)).Time()
 }
 
 // LastModified implements Consumer interface.
@@ -208,7 +209,7 @@ func (c *consumer) run() (Consumer, error) {
 
 func (c *consumer) sync(force bool) (*ConsumerSync, error) {
 	syncTime := timestampFromTime(time.Now()).Millis()
-	defer atomic.StoreInt64(&c.lastSync, syncTime)
+	defer atomic.StoreInt64(&c.lastAttempt, syncTime)
 
 	// retrieve original last modified time
 	lastMod, err := remoteLastModified(c.ctx, c.remote)
@@ -232,7 +233,7 @@ func (c *consumer) sync(force bool) (*ConsumerSync, error) {
 			return nil, err
 		}
 	}
-	defer reader.Close()
+	defer func() { _ = reader.Close() }()
 
 	// consume feed
 	data, err := c.cfn(reader)
@@ -245,7 +246,7 @@ func (c *consumer) sync(force bool) (*ConsumerSync, error) {
 	c.data.Store(data)
 	atomic.StoreInt64(&c.numRead, reader.NumRead())
 	atomic.StoreInt64(&c.lastMod, lastMod.Millis())
-	atomic.StoreInt64(&c.lastConsumed, syncTime)
+	atomic.StoreInt64(&c.lastSuccess, syncTime)
 	return &ConsumerSync{
 		Consumer:     c,
 		Updated:      true,
