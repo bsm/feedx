@@ -1,130 +1,119 @@
 package feedx_test
 
 import (
+	"context"
 	"reflect"
 	"testing"
-	"time"
 
 	"github.com/bsm/bfs"
 	"github.com/bsm/feedx"
+	"github.com/bsm/feedx/internal/testdata"
 )
 
 func TestConsumer(t *testing.T) {
-	modTime := time.Unix(1515151515, 123456789)
-
 	t.Run("consumes", func(t *testing.T) {
-		csm := fixConsumer(t, modTime)
-		if exp, got := csm.LastAttempt(), csm.LastSuccess(); exp != got {
+		csm := fixConsumer(t, 33)
+		defer csm.Close()
+
+		if exp, got := int64(0), csm.Version(); exp != got {
 			t.Errorf("expected %v, got %v", exp, got)
 		}
-		testConsumer(t, csm, time.Now().Add(-time.Second), modTime, 2)
-	})
 
-	t.Run("not if not changed", func(t *testing.T) {
-		csm := fixConsumer(t, modTime)
-		prevAttempt := csm.LastAttempt()
-		time.Sleep(time.Millisecond)
-
-		if err := csm.(interface{ TestSync() error }).TestSync(); err != nil {
-			t.Fatal("unexpected error", err)
-		}
-		if exp, got := prevAttempt, csm.LastSuccess(); exp != got {
+		// first attempt
+		msgs := testConsume(t, csm, &feedx.ConsumeStatus{
+			PreviousVersion: 0,
+			Version:         33,
+			Skipped:         false,
+			NumRead:         2,
+		})
+		if exp, got := int64(33), csm.Version(); exp != got {
 			t.Errorf("expected %v, got %v", exp, got)
 		}
-		testConsumer(t, csm, prevAttempt, modTime, 2)
-	})
-
-	t.Run("always if no mtime", func(t *testing.T) {
-		csm := fixConsumer(t, time.Time{})
-		prevSuccess := csm.LastSuccess()
-		time.Sleep(time.Millisecond)
-
-		if err := csm.(interface{ TestSync() error }).TestSync(); err != nil {
-			t.Fatal("unexpected error", err)
-		}
-		if prev, cur := prevSuccess, csm.LastSuccess(); !prev.Before(cur) {
-			t.Errorf("expected %v to be > %v", cur, prev)
-		}
-		if exp, got := time.Unix(0, 0), csm.LastModified(); exp != got {
+		if exp, got := 2, len(msgs); exp != got {
 			t.Errorf("expected %v, got %v", exp, got)
 		}
+
+		// second attempt
+		_ = testConsume(t, csm, &feedx.ConsumeStatus{
+			PreviousVersion: 33,
+			Version:         33,
+			Skipped:         true,
+			NumRead:         0,
+		})
 	})
+
+	t.Run("always if no version", func(t *testing.T) {
+		csm := fixConsumer(t, 0)
+		defer csm.Close()
+
+		testConsume(t, csm, &feedx.ConsumeStatus{NumRead: 2})
+		testConsume(t, csm, &feedx.ConsumeStatus{NumRead: 2})
+	})
+
+	t.Run("incremental", func(t *testing.T) {
+		csm := fixIncrementalConsumer(t, 33)
+		defer csm.Close()
+
+		// first attempt
+		msgs := testConsume(t, csm, &feedx.ConsumeStatus{
+			PreviousVersion: 0,
+			Version:         33,
+			NumRead:         4,
+		})
+		if exp, got := int64(33), csm.Version(); exp != got {
+			t.Errorf("expected %v, got %v", exp, got)
+		}
+		if exp, got := 4, len(msgs); exp != got {
+			t.Errorf("expected %v, got %v", exp, got)
+		}
+
+		// second attempt
+		_ = testConsume(t, csm, &feedx.ConsumeStatus{
+			PreviousVersion: 33,
+			Version:         33,
+			Skipped:         true,
+		})
+	})
+
 }
 
-func TestIncrementalConsumer(t *testing.T) {
-	modTime := time.Unix(1515151515, 123456789)
-
-	t.Run("consumes", func(t *testing.T) {
-		csm := fixIncrementalConsumer(t, modTime)
-		if exp, got := csm.LastAttempt(), csm.LastSuccess(); exp != got {
-			t.Errorf("expected %v, got %v", exp, got)
-		}
-		testConsumer(t, csm, time.Now().Add(-time.Second), modTime, 4)
-	})
-
-	t.Run("not if not changed", func(t *testing.T) {
-		csm := fixIncrementalConsumer(t, modTime)
-		prevAttempt := csm.LastAttempt()
-		time.Sleep(time.Millisecond)
-
-		if err := csm.(interface{ TestSync() error }).TestSync(); err != nil {
-			t.Fatal("unexpected error", err)
-		}
-		if exp, got := prevAttempt, csm.LastSuccess(); exp != got {
-			t.Errorf("expected %v, got %v", exp, got)
-		}
-		testConsumer(t, csm, prevAttempt, modTime, 4)
-	})
-
-	t.Run("always if no mtime", func(t *testing.T) {
-		csm := fixIncrementalConsumer(t, time.Time{})
-		prevSuccess := csm.LastSuccess()
-		time.Sleep(time.Millisecond)
-
-		if err := csm.(interface{ TestSync() error }).TestSync(); err != nil {
-			t.Fatal("unexpected error", err)
-		}
-		if prev, cur := prevSuccess, csm.LastSuccess(); !prev.Before(cur) {
-			t.Errorf("expected %v to be > %v", cur, prev)
-		}
-		if exp, got := time.Unix(0, 0), csm.LastModified(); exp != got {
-			t.Errorf("expected %v, got %v", exp, got)
-		}
-	})
-}
-
-func fixConsumer(t *testing.T, modTime time.Time) feedx.Consumer {
+func fixConsumer(t *testing.T, version int64) feedx.Consumer {
 	t.Helper()
 
 	obj := bfs.NewInMemObject("path/to/file.json")
-	if err := writeN(obj, 2, modTime); err != nil {
+	if err := writeN(obj, 2, version); err != nil {
 		t.Fatal("unexpected error", err)
 	}
-	csm, err := feedx.NewConsumerForRemote(t.Context(), obj, nil, func(r *feedx.Reader) (interface{}, error) {
-		return readMessages(r)
-	})
-	if err != nil {
-		t.Fatal("unexpected error", err)
-	}
+	csm := feedx.NewConsumerForRemote(obj)
 	t.Cleanup(func() { _ = csm.Close() })
 
 	return csm
 }
 
-func fixIncrementalConsumer(t *testing.T, modTime time.Time) feedx.Consumer {
+func fixIncrementalConsumer(t *testing.T, version int64) feedx.Consumer {
 	t.Helper()
 
 	bucket := bfs.NewInMem()
-	dataFile := bfs.NewObjectFromBucket(bucket, "data-0-20230501-120023123.jsonz")
-	if err := writeN(dataFile, 2, modTime); err != nil {
+	obj1 := bfs.NewObjectFromBucket(bucket, "data-0-0.json")
+	if err := writeN(obj1, 2, 0); err != nil {
 		t.Fatal("unexpected error", err)
 	}
+	defer obj1.Close()
+
+	obj2 := bfs.NewObjectFromBucket(bucket, "data-0-1.json")
+	if err := writeN(obj2, 2, 0); err != nil {
+		t.Fatal("unexpected error", err)
+	}
+	defer obj2.Close()
+
+	objm := bfs.NewObjectFromBucket(bucket, "manifest.json")
+	defer objm.Close()
 
 	manifest := &feedx.Manifest{
-		LastModified: feedx.TimestampFromTime(modTime),
-		Files:        []string{dataFile.Name(), dataFile.Name()},
+		Version: version,
+		Files:   []string{obj1.Name(), obj2.Name()},
 	}
-	writer := feedx.NewWriter(t.Context(), bfs.NewObjectFromBucket(bucket, "manifest.json"), &feedx.WriterOptions{LastMod: modTime})
+	writer := feedx.NewWriter(t.Context(), objm, &feedx.WriterOptions{Version: version})
 	defer writer.Discard()
 
 	if err := writer.Encode(manifest); err != nil {
@@ -133,28 +122,25 @@ func fixIncrementalConsumer(t *testing.T, modTime time.Time) feedx.Consumer {
 		t.Fatal("unexpected error", err)
 	}
 
-	csm, err := feedx.NewIncrementalConsumerForBucket(t.Context(), bucket, nil, func(r *feedx.Reader) (interface{}, error) {
-		return readMessages(r)
-	})
-	if err != nil {
-		t.Fatal("unexpected error", err)
-	}
+	csm := feedx.NewIncrementalConsumerForBucket(bucket)
 	t.Cleanup(func() { _ = csm.Close() })
 
 	return csm
 }
 
-func testConsumer(t *testing.T, csm feedx.Consumer, minLastAttempt, modTime time.Time, numRead int) {
-	if min, got := minLastAttempt, csm.LastAttempt(); !min.Before(got) {
-		t.Errorf("expected %v to be not before %v", got, min)
+func testConsume(t *testing.T, csm feedx.Consumer, exp *feedx.ConsumeStatus) (msgs []*testdata.MockMessage) {
+	t.Helper()
+
+	status, err := csm.Consume(t.Context(), nil, func(ctx context.Context, r *feedx.Reader) (err error) {
+		msgs, err = readMessages(r)
+		return err
+	})
+	if err != nil {
+		t.Fatal("unexpected error", err)
 	}
-	if exp, got := modTime.Truncate(time.Millisecond), csm.LastModified(); exp != got {
-		t.Errorf("expected %v, got %v", exp, got)
+
+	if !reflect.DeepEqual(exp, status) {
+		t.Errorf("expected %#v, got %#v", exp, status)
 	}
-	if exp, got := numRead, csm.NumRead(); exp != got {
-		t.Errorf("expected %v, got %v", exp, got)
-	}
-	if exp, got := seedN(numRead), csm.Data(); !reflect.DeepEqual(exp, got) {
-		t.Errorf("expected %#v, got %#v", exp, got)
-	}
+	return
 }

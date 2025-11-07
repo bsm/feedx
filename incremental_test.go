@@ -14,9 +14,9 @@ import (
 func TestIncrementalProducer(t *testing.T) {
 	numRuns := new(atomic.Int32)
 	bucket := bfs.NewInMem()
-	modTime := time.Unix(1515151515, 123456789)
+	version := int64(33)
 
-	prodFunc := func(_ time.Time) feedx.ProduceFunc {
+	prodFunc := func(_ int64) feedx.ProduceFunc {
 		return func(w *feedx.Writer) error {
 			numRuns.Add(1)
 
@@ -28,10 +28,10 @@ func TestIncrementalProducer(t *testing.T) {
 			return nil
 		}
 	}
-	lastModFunc := func(_ context.Context) (time.Time, error) { return modTime, nil }
+	versionCheck := func(_ context.Context) (int64, error) { return version, nil }
 
 	t.Run("produces", func(t *testing.T) {
-		p, err := feedx.NewIncrementalProducerForBucket(t.Context(), bucket, nil, lastModFunc, prodFunc)
+		p, err := feedx.NewIncrementalProducerForBucket(t.Context(), bucket, nil, versionCheck, prodFunc)
 		if err != nil {
 			t.Fatal("unexpected error", err)
 		}
@@ -43,7 +43,7 @@ func TestIncrementalProducer(t *testing.T) {
 		if dur := time.Since(p.LastAttempt()); dur > time.Second {
 			t.Errorf("expected to be recent, but was %s ago", dur)
 		}
-		if exp, got := time.Unix(1515151515, 123000000), p.LastModified(); exp != got {
+		if exp, got := version, p.Version(); exp != got {
 			t.Errorf("expected %v, got %v", exp, got)
 		}
 		if exp, got := 10, p.NumWritten(); exp != got {
@@ -54,20 +54,20 @@ func TestIncrementalProducer(t *testing.T) {
 		if err != nil {
 			t.Fatal("unexpected error", err)
 		} else if exp := (&feedx.Manifest{
-			LastModified: feedx.TimestampFromTime(modTime),
-			Files:        []string{"data-0-20180105-112515123.pbz"},
+			Version: 33,
+			Files:   []string{"data-0-33.pbz"},
 		}); !reflect.DeepEqual(exp, mft) {
 			t.Errorf("expected %#v, got %#v", exp, mft)
 		}
 
-		info, err := bucket.Head(t.Context(), "data-0-20180105-112515123.pbz")
+		info, err := bucket.Head(t.Context(), "data-0-33.pbz")
 		if err != nil {
 			t.Fatal("unexpected error", err)
 		} else if max, got := int64(45), info.Size; got > max {
 			t.Errorf("expected %v to be < %v", got, max)
 		}
 
-		if exp, got := "1515151515123", info.Metadata.Get("X-Feedx-Last-Modified"); exp != got {
+		if exp, got := "33", info.Metadata.Get("X-Feedx-Version"); exp != got {
 			t.Errorf("expected %v, got %v", exp, got)
 		}
 	})
@@ -75,7 +75,7 @@ func TestIncrementalProducer(t *testing.T) {
 	t.Run("skip if not changed", func(t *testing.T) {
 		runCount := numRuns.Load()
 
-		p, err := feedx.NewIncrementalProducerForBucket(t.Context(), bucket, nil, lastModFunc, prodFunc)
+		p, err := feedx.NewIncrementalProducerForBucket(t.Context(), bucket, nil, versionCheck, prodFunc)
 		if err != nil {
 			t.Fatal("unexpected error", err)
 		}
@@ -89,8 +89,8 @@ func TestIncrementalProducer(t *testing.T) {
 	t.Run("run if changed", func(t *testing.T) {
 		runCount := numRuns.Load()
 
-		newLastMod := func(ctx context.Context) (time.Time, error) { return modTime.Add(time.Hour), nil }
-		p, err := feedx.NewIncrementalProducerForBucket(t.Context(), bucket, nil, newLastMod, prodFunc)
+		newVersion := func(ctx context.Context) (int64, error) { return 55, nil }
+		p, err := feedx.NewIncrementalProducerForBucket(t.Context(), bucket, nil, newVersion, prodFunc)
 		if err != nil {
 			t.Fatal("unexpected error", err)
 		}

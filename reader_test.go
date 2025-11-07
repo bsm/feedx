@@ -4,7 +4,6 @@ import (
 	"io"
 	"reflect"
 	"testing"
-	"time"
 
 	"github.com/bsm/bfs"
 	"github.com/bsm/feedx"
@@ -40,7 +39,7 @@ func fixReader(t *testing.T) *feedx.Reader {
 	t.Helper()
 
 	obj := bfs.NewInMemObject("path/to/file.jsonz")
-	if err := writeN(obj, 3, time.Time{}); err != nil {
+	if err := writeN(obj, 3, 0); err != nil {
 		t.Fatal("unexpected error", err)
 	}
 
@@ -85,7 +84,7 @@ func fixMultiReader(t *testing.T) *feedx.Reader {
 	t.Helper()
 
 	obj := bfs.NewInMemObject("path/to/file.jsonz")
-	if err := writeN(obj, 3, time.Time{}); err != nil {
+	if err := writeN(obj, 3, 0); err != nil {
 		t.Fatal("unexpected error", err)
 	}
 

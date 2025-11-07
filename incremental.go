@@ -7,8 +7,8 @@ import (
 	"github.com/bsm/bfs"
 )
 
-// IncrmentalProduceFunc returns a ProduceFunc closure around an incremental mod time.
-type IncrementalProduceFunc func(time.Time) ProduceFunc
+// IncrmentalProduceFunc returns a ProduceFunc closure around an incremental version.
+type IncrementalProduceFunc func(int64) ProduceFunc
 
 // IncrementalProducer produces a continuous incremental feed.
 type IncrementalProducer struct {
@@ -29,7 +29,7 @@ type IncrementalProducerOptions struct {
 	ProducerOptions
 }
 
-func (o *IncrementalProducerOptions) norm(lmfn LastModFunc) {
+func (o *IncrementalProducerOptions) norm(vfn VersionFunc) {
 	if o.Compression == nil {
 		o.Compression = GZipCompression
 	}
@@ -39,17 +39,17 @@ func (o *IncrementalProducerOptions) norm(lmfn LastModFunc) {
 	if o.Interval == 0 {
 		o.Interval = time.Minute
 	}
-	o.LastModCheck = lmfn
+	o.VersionCheck = vfn
 }
 
 // NewIncrementalProducer inits a new incremental feed producer.
-func NewIncrementalProducer(ctx context.Context, bucketURL string, opt *IncrementalProducerOptions, lmfn LastModFunc, ipfn IncrementalProduceFunc) (*IncrementalProducer, error) {
+func NewIncrementalProducer(ctx context.Context, bucketURL string, opt *IncrementalProducerOptions, vfn VersionFunc, ipfn IncrementalProduceFunc) (*IncrementalProducer, error) {
 	bucket, err := bfs.Connect(ctx, bucketURL)
 	if err != nil {
 		return nil, err
 	}
 
-	p, err := NewIncrementalProducerForBucket(ctx, bucket, opt, lmfn, ipfn)
+	p, err := NewIncrementalProducerForBucket(ctx, bucket, opt, vfn, ipfn)
 	if err != nil {
 		_ = bucket.Close()
 		return nil, err
@@ -60,12 +60,12 @@ func NewIncrementalProducer(ctx context.Context, bucketURL string, opt *Incremen
 }
 
 // NewIncrementalProducerForRemote starts a new incremental feed producer for a bucket.
-func NewIncrementalProducerForBucket(ctx context.Context, bucket bfs.Bucket, opt *IncrementalProducerOptions, lmfn LastModFunc, ipfn IncrementalProduceFunc) (*IncrementalProducer, error) {
+func NewIncrementalProducerForBucket(ctx context.Context, bucket bfs.Bucket, opt *IncrementalProducerOptions, vfn VersionFunc, ipfn IncrementalProduceFunc) (*IncrementalProducer, error) {
 	var o IncrementalProducerOptions
 	if opt != nil {
 		o = IncrementalProducerOptions(*opt)
 	}
-	o.norm(lmfn)
+	o.norm(vfn)
 
 	ctx, stop := context.WithCancel(ctx)
 	p := &IncrementalProducer{
@@ -127,11 +127,10 @@ func (p *IncrementalProducer) push() (*ProducerPush, error) {
 	p.updateLastAttempt(start)
 
 	// get last mod time for local records
-	localLastMod, err := p.opt.LastModCheck(p.ctx)
+	localVersion, err := p.opt.VersionCheck(p.ctx)
 	if err != nil {
 		return nil, err
-	}
-	if localLastMod.IsZero() {
+	} else if localVersion == 0 {
 		return &ProducerPush{producerState: p.producerState}, nil
 	}
 
@@ -142,13 +141,13 @@ func (p *IncrementalProducer) push() (*ProducerPush, error) {
 	}
 
 	// compare manifest LastModified to local last mod.
-	remoteLastMod := manifest.LastModified
-	if remoteLastMod == timestampFromTime(localLastMod) {
+	remoteVersion := manifest.Version
+	if remoteVersion == localVersion {
 		return &ProducerPush{producerState: p.producerState}, nil
 	}
 
 	wopt := p.opt.WriterOptions
-	wopt.LastMod = localLastMod
+	wopt.Version = localVersion
 
 	// write data modified since last remote mod
 	numWritten, err := p.writeDataFile(manifest, &wopt)
@@ -156,12 +155,12 @@ func (p *IncrementalProducer) push() (*ProducerPush, error) {
 		return nil, err
 	}
 	// write new manifest to remote
-	if err := p.commitManifest(manifest, &WriterOptions{LastMod: wopt.LastMod}); err != nil {
+	if err := p.commitManifest(manifest, &WriterOptions{Version: wopt.Version}); err != nil {
 		return nil, err
 	}
 
 	p.updateNumWritten(numWritten)
-	p.updateLastModified(wopt.LastMod)
+	p.updateVersion(wopt.Version)
 	return &ProducerPush{producerState: p.producerState, Updated: true}, nil
 }
 
@@ -171,7 +170,7 @@ func (p *IncrementalProducer) writeDataFile(m *manifest, wopt *WriterOptions) (i
 	writer := NewWriter(p.ctx, bfs.NewObjectFromBucket(p.bucket, fname), wopt)
 	defer writer.Discard()
 
-	if err := p.ipfn(wopt.LastMod)(writer); err != nil {
+	if err := p.ipfn(wopt.Version)(writer); err != nil {
 		return 0, err
 	}
 	if err := writer.Commit(); err != nil {
@@ -179,7 +178,7 @@ func (p *IncrementalProducer) writeDataFile(m *manifest, wopt *WriterOptions) (i
 	}
 
 	m.Files = append(m.Files, fname)
-	m.LastModified = timestampFromTime(wopt.LastMod)
+	m.Version = wopt.Version
 
 	return writer.NumWritten(), nil
 }

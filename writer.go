@@ -4,7 +4,7 @@ import (
 	"bufio"
 	"context"
 	"io"
-	"time"
+	"strconv"
 
 	"github.com/bsm/bfs"
 )
@@ -19,9 +19,9 @@ type WriterOptions struct {
 	// Default: auto-detected from URL path.
 	Compression Compression
 
-	// Provides an optional last modified timestamp which is stored with the remote metadata.
-	// Default: time.Time{}.
-	LastMod time.Time
+	// Provides an optional version which is stored with the remote metadata.
+	// Default: 0
+	Version int64
 }
 
 func (o *WriterOptions) norm(name string) {
@@ -147,9 +147,8 @@ func (w *Writer) close() (err error) {
 
 func (w *Writer) ensureCreated() error {
 	if w.bw == nil {
-		ts := timestampFromTime(w.opt.LastMod)
 		bw, err := w.remote.Create(w.ctx, &bfs.WriteOptions{
-			Metadata: bfs.Metadata{metaLastModified: ts.String()},
+			Metadata: bfs.Metadata{metaVersion: strconv.FormatInt(w.opt.Version, 10)},
 		})
 		if err != nil {
 			return err

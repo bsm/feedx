@@ -32,19 +32,19 @@ module Feedx
     # @return [Boolean] returns true if performed.
     def each(&block)
       stream = Feedx::Stream.new(@url, **@opts)
-      remote_rev = nil
+      remote_ver = nil
 
       if @cache
         metadata   = stream.blob.info.metadata
-        local_rev  = @cache.read.to_i
-        remote_rev = (metadata[META_LAST_MODIFIED] || metadata[META_LAST_MODIFIED_DC]).to_i
-        return false if remote_rev.positive? && remote_rev <= local_rev
+        local_ver  = @cache.read.to_i
+        remote_ver = (metadata[META_VERSION] || metadata[META_VERSION_DC]).to_i
+        return false if remote_ver.positive? && remote_ver <= local_ver
       end
 
       stream.open do |fmt|
         fmt.decode_each(@klass, **@opts, &block)
       end
-      @cache.write(remote_rev) if @cache && remote_rev
+      @cache.write(remote_ver) if @cache && remote_ver
 
       true
     ensure

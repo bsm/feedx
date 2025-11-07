@@ -4,3 +4,8 @@ linters:
     errcheck:
       exclude-functions:
         - (*github.com/bsm/feedx.Writer).Discard
+        - (*github.com/bsm/feedx.Reader).Close
+        - (github.com/bsm/feedx.Consumer).Close
+        - (*github.com/bsm/feedx.Producer).Close
+        - (*github.com/bsm/bfs.Object).Close
+        - (github.com/bsm/bfs.Writer).Discard

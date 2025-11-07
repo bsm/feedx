@@ -15,16 +15,16 @@ module Feedx
     # @option opts [Enumerable,ActiveRecord::Relation] :enum relation or enumerator to stream.
     # @option opts [Symbol,Class<Feedx::Format::Abstract>] :format custom formatter. Default: from file extension.
     # @option opts [Symbol,Class<Feedx::Compression::Abstract>] :compress enable compression. Default: from file extension.
-    # @option opts [Time,Proc] :last_modified the last modified time, used to determine if a push is necessary.
+    # @option opts [Integer] :version the most recent version, used to determine if a push is necessary.
     # @yield A block factory to generate the relation or enumerator.
     # @yieldreturn [Enumerable,ActiveRecord::Relation] the relation or enumerator to stream.
-    def initialize(url, last_modified: nil, format_options: {}, enum: nil, **opts, &block)
+    def initialize(url, version: nil, format_options: {}, enum: nil, **opts, &block)
       @enum = enum || block
       raise ArgumentError, "#{self.class.name}.new expects an :enum option or a block factory" unless @enum
 
       @url  = url
       @opts = opts.merge(format_options)
-      @last_mod = last_modified
+      @version = version
 
       return if format_options.empty? || (defined?(Gem::Deprecate) && Gem::Deprecate.skip)
 
@@ -34,18 +34,18 @@ module Feedx
     def perform
       Feedx::Stream.open(@url, **@opts) do |stream|
         enum = @enum.is_a?(Proc) ? @enum.call : @enum
-        last_mod = @last_mod.is_a?(Proc) ? @last_mod.call(enum) : @last_mod
-        local_rev = last_mod.is_a?(Integer) ? last_mod : (last_mod.to_f * 1000).floor
+        local_ver = @version.is_a?(Proc) ? @version.call(enum) : @version
+        local_ver = local_ver.to_i
 
         begin
           metadata   = stream.blob.info.metadata
-          remote_rev = (metadata[META_LAST_MODIFIED] || metadata[META_LAST_MODIFIED_DC]).to_i
-          return -1 unless local_rev > remote_rev
+          remote_ver = (metadata[META_VERSION] || metadata[META_VERSION_DC]).to_i
+          return -1 unless local_ver > remote_ver
         rescue BFS::FileNotFound
           nil
-        end if local_rev.positive?
+        end if local_ver.positive?
 
-        stream.create metadata: { META_LAST_MODIFIED => local_rev.to_s } do |fmt|
+        stream.create metadata: { META_VERSION => local_ver.to_s } do |fmt|
           iter = enum.respond_to?(:find_each) ? :find_each : :each
           enum.send(iter) {|rec| fmt.encode(rec, **@opts) }
         end

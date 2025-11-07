@@ -1,9 +1,9 @@
 default: test
 
-.common.makefile:
-	curl -fsSL -o $@ https://gitlab.com/bsm/misc/raw/master/make/go/common.makefile
+.minimal.makefile:
+	curl -fsSL -o $@ https://gitlab.com/bsm/misc/raw/master/make/go/minimal.makefile
 
-include .common.makefile
+include .minimal.makefile
 
 proto: internal/testdata/testdata.pb.go
 

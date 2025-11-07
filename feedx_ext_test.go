@@ -2,19 +2,9 @@ package feedx
 
 import (
 	"context"
-	"time"
 
 	"github.com/bsm/bfs"
 )
-
-func (c *consumer) TestSync() error {
-	_, err := c.sync(false)
-	return err
-}
-
-func TimestampFromTime(t time.Time) timestamp {
-	return timestampFromTime(t)
-}
 
 type NoFormat = noFormat
 

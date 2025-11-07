@@ -12,8 +12,8 @@ import (
 // manifest holds the current feed status.
 // the current manifest is consumed before each push and a new manifest written after each push.
 type manifest struct {
-	// LastModified holds a last-modified time of the records included in Files.
-	LastModified timestamp `json:"lastModified"`
+	// Version holds the most recent version of the records included in Files.
+	Version int64 `json:"version"`
 	// Generation is a incrementing counter for use in file compaction.
 	Generation int `json:"generation"`
 	// Files holds a set of data files
@@ -41,7 +41,7 @@ func loadManifest(ctx context.Context, obj *bfs.Object) (*manifest, error) {
 }
 
 func (m *manifest) newDataFileName(wopt *WriterOptions) string {
-	ts := strings.ReplaceAll(wopt.LastMod.Format("20060102-150405.000"), ".", "")
+	version := strings.ReplaceAll(strconv.FormatInt(wopt.Version, 10), ".", "")
 
 	formatExt := ".json"
 	switch wopt.Format {
@@ -61,5 +61,5 @@ func (m *manifest) newDataFileName(wopt *WriterOptions) string {
 		compressionSuffix = ".zst"
 	}
 
-	return "data-" + strconv.Itoa(m.Generation) + "-" + ts + formatExt + compressionSuffix
+	return "data-" + strconv.Itoa(m.Generation) + "-" + version + formatExt + compressionSuffix
 }
