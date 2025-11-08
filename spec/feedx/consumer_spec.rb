@@ -26,7 +26,7 @@ RSpec.describe Feedx::Consumer do
   end
 
   it 'performs conditionally' do
-    url = mock_produce! last_modified: Time.at(1515151515)
+    url = mock_produce! version: 33
     expect(described_class.new(url, klass, cache: cache).count).to eq(300)
     expect(described_class.new(url, klass, cache: cache).count).to eq(0)
 

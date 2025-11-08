@@ -2,281 +2,159 @@ package feedx
 
 import (
 	"context"
+	"errors"
 	"sync/atomic"
-	"time"
 
 	"github.com/bsm/bfs"
 )
 
-// ConsumerOptions configure the consumer instance.
-type ConsumerOptions struct {
-	ReaderOptions
-
-	// The interval used by consumer to check the remote changes.
-	// Default: 1m
-	Interval time.Duration
-
-	// AfterSync callbacks are triggered after each sync, receiving
-	// the sync state and error (if occurred).
-	AfterSync func(*ConsumerSync, error)
+// ConsumeStatus is returned by Consumer instances.
+type ConsumeStatus struct {
+	// Skipped indicates the the sync was skipped, because there were no new changes.
+	Skipped bool
+	// Version indicates the current version of the remote feed.
+	Version int64
+	// PreviousVersion indicates the last known version to the consumer before the sync.
+	PreviousVersion int64
+	// NumRead returns the number of items read.
+	NumRead int64
 }
 
-func (o *ConsumerOptions) norm() {
-	if o.Interval <= 0 {
-		o.Interval = time.Minute
-	}
-}
-
-// ConsumerSync contains the state of the last sync.
-type ConsumerSync struct {
-	// Consumer exposes the current consumer state.
-	Consumer
-	// Updated indicates is the sync resulted in an update.
-	Updated bool
-	// PreviousData references the data before the update.
-	// It allows to apply finalizers to data structures created by ConsumeFunc.
-	// This is only set when an update happened.
-	PreviousData interface{}
-}
-
-// ConsumeFunc is a parsing callback which is run by the consumer every sync interval.
-type ConsumeFunc func(*Reader) (data interface{}, err error)
+// ConsumeFunc is a callback invoked by consumers.
+type ConsumeFunc func(context.Context, *Reader) error
 
 // Consumer manages data retrieval from a remote feed.
 // It queries the feed in regular intervals, continuously retrieving new updates.
 type Consumer interface {
-	// Data returns the data as returned by ConsumeFunc on last sync.
-	Data() interface{}
-	// LastAttempt returns the time of last sync attempt.
-	LastAttempt() time.Time
-	// LastSuccess returns the time of last successful sync.
-	LastSuccess() time.Time
-	// LastModified returns the time at which the remote feed was last modified.
-	LastModified() time.Time
-	// NumRead returns the number of values consumed during the last successful attempt.
-	NumRead() int
+	// Consume initiates a sync attempt. It will consume the remote feed only if it has changed since
+	// last invocation.
+	Consume(context.Context, *ReaderOptions, ConsumeFunc) (*ConsumeStatus, error)
+
+	// Version indicates the most recently consumed version.
+	Version() int64
+
 	// Close stops the underlying sync process.
 	Close() error
 }
 
 // NewConsumer starts a new feed consumer.
-func NewConsumer(ctx context.Context, remoteURL string, opt *ConsumerOptions, cfn ConsumeFunc) (Consumer, error) {
+func NewConsumer(ctx context.Context, remoteURL string) (Consumer, error) {
 	remote, err := bfs.NewObject(ctx, remoteURL)
 	if err != nil {
 		return nil, err
 	}
 
-	csm, err := NewConsumerForRemote(ctx, remote, opt, cfn)
-	if err != nil {
-		_ = remote.Close()
-		return nil, err
-	}
+	csm := NewConsumerForRemote(remote)
 	csm.(*consumer).ownRemote = true
 	return csm, nil
 }
 
 // NewConsumerForRemote starts a new feed consumer with a remote.
-func NewConsumerForRemote(ctx context.Context, remote *bfs.Object, opt *ConsumerOptions, cfn ConsumeFunc) (Consumer, error) {
-	var o ConsumerOptions
-	if opt != nil {
-		o = *opt
-	}
-	o.norm()
-
-	ctx, stop := context.WithCancel(ctx)
-	c := &consumer{
-		remote: remote,
-		opt:    o,
-		ctx:    ctx,
-		stop:   stop,
-		cfn:    cfn,
-	}
-
-	return c.run()
+func NewConsumerForRemote(remote *bfs.Object) Consumer {
+	return &consumer{remote: remote}
 }
 
 // NewIncrementalConsumer starts a new incremental feed consumer.
-func NewIncrementalConsumer(ctx context.Context, bucketURL string, opt *ConsumerOptions, cfn ConsumeFunc) (Consumer, error) {
+func NewIncrementalConsumer(ctx context.Context, bucketURL string) (Consumer, error) {
 	bucket, err := bfs.Connect(ctx, bucketURL)
 	if err != nil {
 		return nil, err
 	}
 
-	csm, err := NewIncrementalConsumerForBucket(ctx, bucket, opt, cfn)
-	if err != nil {
-		_ = bucket.Close()
-		return nil, err
-	}
+	csm := NewIncrementalConsumerForBucket(bucket)
 	csm.(*consumer).ownBucket = true
 	return csm, nil
 }
 
 // NewIncrementalConsumerForBucket starts a new incremental feed consumer with a bucket.
-func NewIncrementalConsumerForBucket(ctx context.Context, bucket bfs.Bucket, opt *ConsumerOptions, cfn ConsumeFunc) (Consumer, error) {
-	var o ConsumerOptions
-	if opt != nil {
-		o = *opt
-	}
-	o.norm()
-
-	ctx, stop := context.WithCancel(ctx)
-	c := &consumer{
+func NewIncrementalConsumerForBucket(bucket bfs.Bucket) Consumer {
+	return &consumer{
 		remote:    bfs.NewObjectFromBucket(bucket, "manifest.json"),
 		ownRemote: true,
 		bucket:    bucket,
-		opt:       o,
-		ctx:       ctx,
-		stop:      stop,
-		cfn:       cfn,
 	}
-
-	return c.run()
 }
 
 type consumer struct {
-	ctx  context.Context
-	stop context.CancelFunc
-
 	remote    *bfs.Object
 	ownRemote bool
 
 	bucket    bfs.Bucket
 	ownBucket bool
 
-	opt ConsumerOptions
-	cfn ConsumeFunc
-
-	data atomic.Value
-
-	numRead, lastMod, lastAttempt, lastSuccess int64
+	version atomic.Int64
 }
 
-// Data implements Consumer interface.
-func (c *consumer) Data() interface{} {
-	return c.data.Load()
+// Consume implements Consumer interface.
+func (c *consumer) Consume(ctx context.Context, opt *ReaderOptions, fn ConsumeFunc) (*ConsumeStatus, error) {
+	prevVersion := c.Version()
+	status := ConsumeStatus{
+		PreviousVersion: prevVersion,
+	}
+
+	// retrieve remote mtime
+	version, err := fetchRemoteVersion(ctx, c.remote)
+	if err != nil {
+		return nil, err
+	}
+	status.Version = version
+
+	// skip sync unless modified
+	if prevVersion > 0 && prevVersion == version {
+		status.Skipped = true
+		return &status, nil
+	}
+
+	var reader *Reader
+	if c.isIncremental() {
+		if reader, err = c.newIncrementalReader(ctx, opt); err != nil {
+			return nil, err
+		}
+	} else {
+		if reader, err = NewReader(ctx, c.remote, opt); err != nil {
+			return nil, err
+		}
+	}
+	defer reader.Close()
+
+	// consume feed
+	if err := fn(ctx, reader); err != nil {
+		return nil, err
+	}
+
+	status.NumRead = reader.NumRead()
+	c.version.Store(version)
+	return &status, nil
 }
 
-// NumRead implements Consumer interface.
-func (c *consumer) NumRead() int {
-	return int(atomic.LoadInt64(&c.numRead))
-}
-
-// LastAttempt implements Consumer interface.
-func (c *consumer) LastAttempt() time.Time {
-	return timestamp(atomic.LoadInt64(&c.lastAttempt)).Time()
-}
-
-// LastSuccess implements Consumer interface.
-func (c *consumer) LastSuccess() time.Time {
-	return timestamp(atomic.LoadInt64(&c.lastSuccess)).Time()
-}
-
-// LastModified implements Consumer interface.
-func (c *consumer) LastModified() time.Time {
-	return timestamp(atomic.LoadInt64(&c.lastMod)).Time()
+// Version implements Consumer interface.
+func (c *consumer) Version() int64 {
+	return c.version.Load()
 }
 
 // Close implements Consumer interface.
 func (c *consumer) Close() (err error) {
-	c.stop()
 	if c.ownRemote && c.remote != nil {
 		if e := c.remote.Close(); e != nil {
-			err = e
+			err = errors.Join(err, e)
 		}
 		c.remote = nil
 	}
 	if c.ownBucket && c.bucket != nil {
 		if e := c.bucket.Close(); e != nil {
-			err = e
+			err = errors.Join(err, e)
 		}
 		c.bucket = nil
 	}
 	return
 }
 
-func (c *consumer) run() (Consumer, error) {
-	// run initial sync
-	if _, err := c.sync(true); err != nil {
-		_ = c.Close()
-		return nil, err
-	}
-
-	// start continuous loop
-	go c.loop()
-
-	return c, nil
-}
-
-func (c *consumer) sync(force bool) (*ConsumerSync, error) {
-	syncTime := timestampFromTime(time.Now()).Millis()
-	defer atomic.StoreInt64(&c.lastAttempt, syncTime)
-
-	// retrieve original last modified time
-	lastMod, err := remoteLastModified(c.ctx, c.remote)
-	if err != nil {
-		return nil, err
-	}
-
-	// skip update if not forced or modified
-	if !force && lastMod > 0 && lastMod.Millis() == atomic.LoadInt64(&c.lastMod) {
-		return &ConsumerSync{Consumer: c}, nil
-	}
-
-	// open remote reader
-	var reader *Reader
-	if c.isIncremental() {
-		if reader, err = c.newIncrementalReader(); err != nil {
-			return nil, err
-		}
-	} else {
-		if reader, err = NewReader(c.ctx, c.remote, &c.opt.ReaderOptions); err != nil {
-			return nil, err
-		}
-	}
-	defer func() { _ = reader.Close() }()
-
-	// consume feed
-	data, err := c.cfn(reader)
-	if err != nil {
-		return nil, err
-	}
-
-	// update stores
-	previous := c.data.Load()
-	c.data.Store(data)
-	atomic.StoreInt64(&c.numRead, reader.NumRead())
-	atomic.StoreInt64(&c.lastMod, lastMod.Millis())
-	atomic.StoreInt64(&c.lastSuccess, syncTime)
-	return &ConsumerSync{
-		Consumer:     c,
-		Updated:      true,
-		PreviousData: previous,
-	}, nil
-}
-
-func (c *consumer) loop() {
-	ticker := time.NewTicker(c.opt.Interval)
-	defer ticker.Stop()
-
-	for {
-		select {
-		case <-c.ctx.Done():
-			return
-		case <-ticker.C:
-			state, err := c.sync(false)
-			if c.opt.AfterSync != nil {
-				c.opt.AfterSync(state, err)
-			}
-		}
-	}
-}
-
 func (c *consumer) isIncremental() bool {
 	return c.bucket != nil
 }
 
-func (c *consumer) newIncrementalReader() (*Reader, error) {
-	manifest, err := loadManifest(c.ctx, c.remote)
+func (c *consumer) newIncrementalReader(ctx context.Context, opt *ReaderOptions) (*Reader, error) {
+	manifest, err := loadManifest(ctx, c.remote)
 	if err != nil {
 		return nil, err
 	}
@@ -286,7 +164,7 @@ func (c *consumer) newIncrementalReader() (*Reader, error) {
 	for _, file := range files {
 		remotes = append(remotes, bfs.NewObjectFromBucket(c.bucket, file))
 	}
-	r := MultiReader(c.ctx, remotes, &c.opt.ReaderOptions)
+	r := MultiReader(ctx, remotes, opt)
 	r.ownRemotes = true
 	return r, nil
 }

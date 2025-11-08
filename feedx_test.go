@@ -3,7 +3,6 @@ package feedx_test
 import (
 	"context"
 	"io"
-	"time"
 
 	"github.com/bsm/bfs"
 	"github.com/bsm/feedx"
@@ -26,8 +25,8 @@ func seedN(n int) []*testdata.MockMessage {
 	return res
 }
 
-func writeN(obj *bfs.Object, numEntries int, lastMod time.Time) error {
-	w := feedx.NewWriter(context.Background(), obj, &feedx.WriterOptions{LastMod: lastMod})
+func writeN(obj *bfs.Object, numEntries int, version int64) error {
+	w := feedx.NewWriter(context.Background(), obj, &feedx.WriterOptions{Version: version})
 	defer w.Discard()
 
 	for i := 0; i < numEntries; i++ {

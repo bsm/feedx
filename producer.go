@@ -11,21 +11,21 @@ import (
 // ProduceFunc is a callback which is run by the producer on every iteration.
 type ProduceFunc func(*Writer) error
 
-// LastModFunc is a function to return local data last modification time.
-type LastModFunc func(context.Context) (time.Time, error)
+// VersionFunc is a function to retrieve the current local version.
+type VersionFunc func(context.Context) (int64, error)
 
 type producerState struct {
-	numWritten, lastAttempt, lastMod int64
+	numWritten, lastAttempt, version int64
 }
 
 // LastAttempt returns time of last push attempt.
 func (p *producerState) LastAttempt() time.Time {
-	return timestamp(atomic.LoadInt64(&p.lastAttempt)).Time()
+	return epochToTime(atomic.LoadInt64(&p.lastAttempt))
 }
 
-// LastModified returns time at which the remote feed was last modified.
-func (p *producerState) LastModified() time.Time {
-	return timestamp(atomic.LoadInt64(&p.lastMod)).Time()
+// Version returns the most recent feed version.
+func (p *producerState) Version() int64 {
+	return atomic.LoadInt64(&p.version)
 }
 
 // NumWritten returns the number of values produced during the last push.
@@ -34,11 +34,11 @@ func (p *producerState) NumWritten() int {
 }
 
 func (p *producerState) updateLastAttempt(t time.Time) {
-	atomic.StoreInt64(&p.lastAttempt, timestampFromTime(t).Millis())
+	atomic.StoreInt64(&p.lastAttempt, timeToEpoch(t))
 }
 
-func (p *producerState) updateLastModified(t time.Time) {
-	atomic.StoreInt64(&p.lastMod, timestampFromTime(t).Millis())
+func (p *producerState) updateVersion(v int64) {
+	atomic.StoreInt64(&p.version, v)
 }
 
 func (p *producerState) updateNumWritten(n int) {
@@ -53,9 +53,9 @@ type ProducerOptions struct {
 	// Default: 1m
 	Interval time.Duration
 
-	// LastModCheck this function will be called before each push attempt
+	// VersionCheck this function will be called before each push attempt
 	// to dynamically determine the last modified time.
-	LastModCheck LastModFunc
+	VersionCheck VersionFunc
 
 	// AfterPush callbacks are triggered after each push cycle, receiving
 	// the push state and error (if occurred).
@@ -149,19 +149,18 @@ func (p *Producer) push() (*ProducerPush, error) {
 
 	// setup write options
 	wopt := p.opt.WriterOptions
-	wopt.LastMod = start
-	if p.opt.LastModCheck != nil {
-		modTime, err := p.opt.LastModCheck(p.ctx)
+	if p.opt.VersionCheck != nil {
+		version, err := p.opt.VersionCheck(p.ctx)
 		if err != nil {
 			return nil, err
 		}
-		wopt.LastMod = modTime
+		wopt.Version = version
 	}
 
-	// retrieve original last modified time, skip if not modified
-	if rts, err := remoteLastModified(p.ctx, p.remote); err != nil {
+	// retrieve remote version, skip if not modified
+	if ver, err := fetchRemoteVersion(p.ctx, p.remote); err != nil {
 		return nil, err
-	} else if rts == timestampFromTime(wopt.LastMod) {
+	} else if ver != 0 && ver == wopt.Version {
 		return &ProducerPush{producerState: p.producerState}, nil
 	}
 
@@ -177,7 +176,7 @@ func (p *Producer) push() (*ProducerPush, error) {
 	}
 
 	p.updateNumWritten(writer.NumWritten())
-	p.updateLastModified(wopt.LastMod)
+	p.updateVersion(wopt.Version)
 
 	return &ProducerPush{
 		producerState: p.producerState,

@@ -12,22 +12,9 @@ import (
 // ErrNotModified is used to signal that something has not been modified.
 var ErrNotModified = errors.New("feedx: not modified")
 
-const (
-	metaLastModified       = "X-Feedx-Last-Modified"
-	metaPusherLastModified = "X-Feedx-Pusher-Last-Modified"
-)
+const metaVersion = "X-Feedx-Version"
 
-// Timestamp with millisecond resolution
-type timestamp int64
-
-func timestampFromTime(t time.Time) timestamp {
-	if n := t.Unix()*1000 + int64(t.Nanosecond()/1e6); n > 0 {
-		return timestamp(n)
-	}
-	return 0
-}
-
-func remoteLastModified(ctx context.Context, obj *bfs.Object) (timestamp, error) {
+func fetchRemoteVersion(ctx context.Context, obj *bfs.Object) (int64, error) {
 	info, err := obj.Head(ctx)
 	if err == bfs.ErrNotFound {
 		return 0, nil
@@ -35,23 +22,17 @@ func remoteLastModified(ctx context.Context, obj *bfs.Object) (timestamp, error)
 		return 0, err
 	}
 
-	millis, _ := strconv.ParseInt(info.Metadata.Get(metaLastModified), 10, 64)
-	if millis == 0 {
-		millis, _ = strconv.ParseInt(info.Metadata.Get(metaPusherLastModified), 10, 64)
+	version, _ := strconv.ParseInt(info.Metadata.Get(metaVersion), 10, 64)
+	return version, nil
+}
+
+func epochToTime(epoch int64) time.Time {
+	return time.Unix(epoch/1000, epoch%1000*1e6)
+}
+
+func timeToEpoch(t time.Time) int64 {
+	if n := t.Unix()*1000 + int64(t.Nanosecond()/1e6); n > 0 {
+		return n
 	}
-	return timestamp(millis), nil
-}
-
-// Millis returns the number of milliseconds since epoch.
-func (t timestamp) Millis() int64 { return int64(t) }
-
-// Time returns the time at t.
-func (t timestamp) Time() time.Time {
-	n := t.Millis()
-	return time.Unix(n/1000, n%1000*1e6)
-}
-
-// String returns a string of milliseconds.
-func (t timestamp) String() string {
-	return strconv.FormatInt(int64(t), 10)
+	return 0
 }

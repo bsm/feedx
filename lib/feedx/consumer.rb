@@ -17,7 +17,7 @@ module Feedx
     # @param [Hash] opts options
     # @option opts [Symbol,Class<Feedx::Format::Abstract>] :format custom formatter. Default: from file extension.
     # @option opts [Symbol,Class<Feedx::Compression::Abstract>] :compress enable compression. Default: from file extension.
-    # @option opts [Feedx::Cache::Value] :cache cache value to store remote last modified time and consume conditionally.
+    # @option opts [Feedx::Cache::Value] :cache cache value to store remote version and consume conditionally.
     def initialize(url, klass, format_options: {}, cache: nil, **opts)
       @klass = klass
       @url = url
@@ -32,19 +32,19 @@ module Feedx
     # @return [Boolean] returns true if performed.
     def each(&block)
       stream = Feedx::Stream.new(@url, **@opts)
-      remote_rev = nil
+      remote_ver = nil
 
       if @cache
         metadata   = stream.blob.info.metadata
-        local_rev  = @cache.read.to_i
-        remote_rev = (metadata[META_LAST_MODIFIED] || metadata[META_LAST_MODIFIED_DC]).to_i
-        return false if remote_rev.positive? && remote_rev <= local_rev
+        local_ver  = @cache.read.to_i
+        remote_ver = (metadata[META_VERSION] || metadata[META_VERSION_DC]).to_i
+        return false if remote_ver.positive? && remote_ver <= local_ver
       end
 
       stream.open do |fmt|
         fmt.decode_each(@klass, **@opts, &block)
       end
-      @cache.write(remote_rev) if @cache && remote_rev
+      @cache.write(remote_ver) if @cache && remote_ver
 
       true
     ensure

@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"reflect"
 	"testing"
-	"time"
 
 	"github.com/bsm/bfs"
 	"github.com/bsm/feedx"
@@ -14,14 +13,14 @@ func TestWriter(t *testing.T) {
 	t.Run("writes plain", func(t *testing.T) {
 		obj := bfs.NewInMemObject("path/to/file.json")
 		info := testWriter(t, obj, &feedx.WriterOptions{
-			LastMod: time.Unix(1515151515, 123456789),
+			Version: 33,
 		})
 
 		if exp, got := int64(10000), info.Size; exp != got {
 			t.Errorf("expected %v, got %v", exp, got)
 		}
 
-		meta := bfs.Metadata{"X-Feedx-Last-Modified": "1515151515123"}
+		meta := bfs.Metadata{"X-Feedx-Version": "33"}
 		if exp, got := meta, info.Metadata; !reflect.DeepEqual(exp, got) {
 			t.Errorf("expected %#v, got %#v", exp, got)
 		}
@@ -30,14 +29,14 @@ func TestWriter(t *testing.T) {
 	t.Run("writes compressed", func(t *testing.T) {
 		obj := bfs.NewInMemObject("path/to/file.jsonz")
 		info := testWriter(t, obj, &feedx.WriterOptions{
-			LastMod: time.Unix(1515151515, 123456789),
+			Version: 33,
 		})
 
 		if max, got := int64(100), info.Size; got > max {
 			t.Errorf("expected %v to be < %v", got, max)
 		}
 
-		meta := bfs.Metadata{"X-Feedx-Last-Modified": "1515151515123"}
+		meta := bfs.Metadata{"X-Feedx-Version": "33"}
 		if exp, got := meta, info.Metadata; !reflect.DeepEqual(exp, got) {
 			t.Errorf("expected %#v, got %#v", exp, got)
 		}
@@ -45,7 +44,7 @@ func TestWriter(t *testing.T) {
 
 	t.Run("encodes", func(t *testing.T) {
 		obj := bfs.NewInMemObject("path/to/file.json")
-		if err := writeN(obj, 10, time.Unix(1515151515, 123456789)); err != nil {
+		if err := writeN(obj, 10, 33); err != nil {
 			t.Fatal("unexpected error", err)
 		}
 
@@ -57,7 +56,7 @@ func TestWriter(t *testing.T) {
 			t.Errorf("expected %v, got %v", exp, got)
 		}
 
-		meta := bfs.Metadata{"X-Feedx-Last-Modified": "1515151515123"}
+		meta := bfs.Metadata{"X-Feedx-Version": "33"}
 		if exp, got := meta, info.Metadata; !reflect.DeepEqual(exp, got) {
 			t.Errorf("expected %#v, got %#v", exp, got)
 		}

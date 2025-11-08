@@ -27,7 +27,7 @@ type Format interface {
 func DetectFormat(name string) Format {
 	ext := path.Ext(path.Base(name))
 	switch ext {
-	case ".json":
+	case ".json", ".ndjson":
 		return JSONFormat
 	case ".pb", ".proto", ".protobuf":
 		return ProtobufFormat

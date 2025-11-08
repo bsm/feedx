@@ -15,10 +15,10 @@ func TestProducer(t *testing.T) {
 
 	t.Run("default", func(t *testing.T) {
 		p, _ := testProducer(t, nil, numRuns)
-		defer func() { _ = p.Close() }()
+		defer p.Close()
 
-		if dur := time.Since(p.LastModified()); dur > time.Second {
-			t.Errorf("expected to be recent, but was %s ago", dur)
+		if exp, got := int64(0), p.Version(); exp != got {
+			t.Errorf("expected %v, got %v", exp, got)
 		}
 
 		if err := p.Close(); err != nil {
@@ -26,17 +26,17 @@ func TestProducer(t *testing.T) {
 		}
 	})
 
-	t.Run("custom last-mod-check", func(t *testing.T) {
+	t.Run("custom version-check", func(t *testing.T) {
 		opt := &feedx.ProducerOptions{
 			Interval:     5 * time.Millisecond,
-			LastModCheck: func(_ context.Context) (time.Time, error) { return time.Unix(1515151515, 987654321), nil },
+			VersionCheck: func(_ context.Context) (int64, error) { return 33, nil },
 		}
 
 		p, info := testProducer(t, opt, numRuns)
-		if exp, got := time.Unix(1515151515, 987000000), p.LastModified(); exp != got {
+		if exp, got := int64(33), p.Version(); exp != got {
 			t.Errorf("expected %v, got %v", exp, got)
 		}
-		if exp, got := "1515151515987", info.Metadata.Get("X-Feedx-Last-Modified"); exp != got {
+		if exp, got := "33", info.Metadata.Get("X-Feedx-Version"); exp != got {
 			t.Errorf("expected %v, got %v", exp, got)
 		}
 

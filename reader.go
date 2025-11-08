@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"io"
-	"time"
 
 	"github.com/bsm/bfs"
 )
@@ -101,20 +100,19 @@ func (r *Reader) NumRead() int64 {
 	return r.num
 }
 
-// LastModified returns the last modified time of the remote feed.
-func (r *Reader) LastModified() (time.Time, error) {
-	var lastMod timestamp
+// Version returns the version of the remote feed.
+func (r *Reader) Version() (int64, error) {
+	var max int64
 	for _, remote := range r.remotes {
-		t, err := remoteLastModified(r.ctx, remote)
+		v, err := fetchRemoteVersion(r.ctx, remote)
 		if err != nil {
-			return time.Time{}, err
-		}
-		if t > lastMod {
-			lastMod = t
+			return 0, err
+		} else if v > max {
+			max = v
 		}
 	}
 
-	return lastMod.Time(), nil
+	return max, nil
 }
 
 // Close closes the reader.
@@ -125,7 +123,7 @@ func (r *Reader) Close() (err error) {
 	if r.ownRemotes {
 		for _, remote := range r.remotes {
 			if e := remote.Close(); e != nil {
-				err = e
+				err = errors.Join(err, e)
 			}
 		}
 	}
@@ -205,17 +203,17 @@ func (r *streamReader) Close() error {
 	var err error
 	if r.fd != nil {
 		if e := r.fd.Close(); e != nil {
-			err = e
+			err = errors.Join(err, e)
 		}
 	}
 	if r.cr != nil {
 		if e := r.cr.Close(); e != nil {
-			err = e
+			err = errors.Join(err, e)
 		}
 	}
 	if r.br != nil {
 		if e := r.br.Close(); e != nil {
-			err = e
+			err = errors.Join(err, e)
 		}
 	}
 	return err
