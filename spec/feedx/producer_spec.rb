@@ -48,21 +48,21 @@ RSpec.describe Feedx::Producer do
   end
 
   it 'supports last-modified' do
-    described_class.perform 'mock:///dir/file.json', version: 33, enum: enumerable
-    expect(bucket.info('dir/file.json').metadata).to eq('X-Feedx-Version' => '33')
+    described_class.perform 'mock:///dir/file.json', version: 101, enum: enumerable
+    expect(bucket.info('dir/file.json').metadata).to eq('X-Feedx-Version' => '101')
   end
 
   it 'performs conditionally' do
-    size = described_class.perform 'mock:///dir/file.json', version: 33, enum: enumerable
+    size = described_class.perform 'mock:///dir/file.json', version: 101, enum: enumerable
     expect(size).to eq(15900)
 
-    size = described_class.perform 'mock:///dir/file.json', version: 33, enum: enumerable
+    size = described_class.perform 'mock:///dir/file.json', version: 101, enum: enumerable
     expect(size).to eq(-1)
 
-    size = described_class.perform 'mock:///dir/file.json', version: 22, enum: enumerable
+    size = described_class.perform 'mock:///dir/file.json', version: 99, enum: enumerable
     expect(size).to eq(-1)
 
-    size = described_class.perform 'mock:///dir/file.json', version: 44, enum: enumerable
+    size = described_class.perform 'mock:///dir/file.json', version: 123, enum: enumerable
     expect(size).to eq(15900)
   end
 

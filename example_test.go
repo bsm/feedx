@@ -59,7 +59,7 @@ func ExampleConsumer() {
 		panic(err)
 	}
 
-	fmt.Printf("STATUS skipped:%v version:%v read:%v\n", status.Skipped, status.Version, status.NumRead)
+	fmt.Printf("STATUS skipped:%v version:%v read:%v\n", status.Skipped, status.RemoteVersion, status.NumItems)
 	fmt.Printf("DATA   %v\n", todos)
 
 	// Output:
@@ -80,21 +80,21 @@ func ExampleScheduler() {
 
 	job := feedx.Every(time.Hour).
 		WithContext(ctx).
-		BeforeConsume(func() bool {
-			fmt.Println("[H] BeforeConsume")
+		BeforeSync(func() bool {
+			fmt.Println("[H] Before sync")
 			return true
 		}).
-		AfterConsume(func(_ *feedx.ConsumeStatus, err error) {
-			fmt.Printf("[H] AfterConsume - error:%v", err)
+		AfterSync(func(_ *feedx.Status, err error) {
+			fmt.Printf("[H] After sync - error:%v", err)
 		}).
 		Consume(csm, func(_ context.Context, _ *feedx.Reader) error {
 			fmt.Println("[*] Consuming feed")
 			return nil
 		})
-	defer job.Stop()
+	job.Stop()
 
 	// Output:
-	// [H] BeforeConsume
+	// [H] Before sync
 	// [*] Consuming feed
-	// [H] AfterConsume - error:<nil>
+	// [H] After sync - error:<nil>
 }

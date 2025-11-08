@@ -12,7 +12,7 @@ import (
 
 func TestConsumer(t *testing.T) {
 	t.Run("consumes", func(t *testing.T) {
-		csm := fixConsumer(t, 33)
+		csm := fixConsumer(t, 101)
 		defer csm.Close()
 
 		if exp, got := int64(0), csm.Version(); exp != got {
@@ -20,13 +20,13 @@ func TestConsumer(t *testing.T) {
 		}
 
 		// first attempt
-		msgs := testConsume(t, csm, &feedx.ConsumeStatus{
-			PreviousVersion: 0,
-			Version:         33,
-			Skipped:         false,
-			NumRead:         2,
+		msgs := testConsume(t, csm, &feedx.Status{
+			LocalVersion:  0,
+			RemoteVersion: 101,
+			Skipped:       false,
+			NumItems:      2,
 		})
-		if exp, got := int64(33), csm.Version(); exp != got {
+		if exp, got := int64(101), csm.Version(); exp != got {
 			t.Errorf("expected %v, got %v", exp, got)
 		}
 		if exp, got := 2, len(msgs); exp != got {
@@ -34,11 +34,11 @@ func TestConsumer(t *testing.T) {
 		}
 
 		// second attempt
-		_ = testConsume(t, csm, &feedx.ConsumeStatus{
-			PreviousVersion: 33,
-			Version:         33,
-			Skipped:         true,
-			NumRead:         0,
+		_ = testConsume(t, csm, &feedx.Status{
+			LocalVersion:  101,
+			RemoteVersion: 101,
+			Skipped:       true,
+			NumItems:      0,
 		})
 	})
 
@@ -46,21 +46,21 @@ func TestConsumer(t *testing.T) {
 		csm := fixConsumer(t, 0)
 		defer csm.Close()
 
-		testConsume(t, csm, &feedx.ConsumeStatus{NumRead: 2})
-		testConsume(t, csm, &feedx.ConsumeStatus{NumRead: 2})
+		testConsume(t, csm, &feedx.Status{NumItems: 2})
+		testConsume(t, csm, &feedx.Status{NumItems: 2})
 	})
 
 	t.Run("incremental", func(t *testing.T) {
-		csm := fixIncrementalConsumer(t, 33)
+		csm := fixIncrementalConsumer(t, 101)
 		defer csm.Close()
 
 		// first attempt
-		msgs := testConsume(t, csm, &feedx.ConsumeStatus{
-			PreviousVersion: 0,
-			Version:         33,
-			NumRead:         4,
+		msgs := testConsume(t, csm, &feedx.Status{
+			LocalVersion:  0,
+			RemoteVersion: 101,
+			NumItems:      4,
 		})
-		if exp, got := int64(33), csm.Version(); exp != got {
+		if exp, got := int64(101), csm.Version(); exp != got {
 			t.Errorf("expected %v, got %v", exp, got)
 		}
 		if exp, got := 4, len(msgs); exp != got {
@@ -68,10 +68,10 @@ func TestConsumer(t *testing.T) {
 		}
 
 		// second attempt
-		_ = testConsume(t, csm, &feedx.ConsumeStatus{
-			PreviousVersion: 33,
-			Version:         33,
-			Skipped:         true,
+		_ = testConsume(t, csm, &feedx.Status{
+			LocalVersion:  101,
+			RemoteVersion: 101,
+			Skipped:       true,
 		})
 	})
 
@@ -81,9 +81,12 @@ func fixConsumer(t *testing.T, version int64) feedx.Consumer {
 	t.Helper()
 
 	obj := bfs.NewInMemObject("path/to/file.json")
+	t.Cleanup(func() { _ = obj.Close() })
+
 	if err := writeN(obj, 2, version); err != nil {
 		t.Fatal("unexpected error", err)
 	}
+
 	csm := feedx.NewConsumerForRemote(obj)
 	t.Cleanup(func() { _ = csm.Close() })
 
@@ -128,7 +131,7 @@ func fixIncrementalConsumer(t *testing.T, version int64) feedx.Consumer {
 	return csm
 }
 
-func testConsume(t *testing.T, csm feedx.Consumer, exp *feedx.ConsumeStatus) (msgs []*testdata.MockMessage) {
+func testConsume(t *testing.T, csm feedx.Consumer, exp *feedx.Status) (msgs []*testdata.MockMessage) {
 	t.Helper()
 
 	status, err := csm.Consume(t.Context(), nil, func(ctx context.Context, r *feedx.Reader) (err error) {

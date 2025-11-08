@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"strconv"
-	"time"
 
 	"github.com/bsm/bfs"
 )
@@ -26,13 +25,18 @@ func fetchRemoteVersion(ctx context.Context, obj *bfs.Object) (int64, error) {
 	return version, nil
 }
 
-func epochToTime(epoch int64) time.Time {
-	return time.Unix(epoch/1000, epoch%1000*1e6)
+// Status is returned by sync processes.
+type Status struct {
+	// Skipped indicates the the sync was skipped, because there were no new changes.
+	Skipped bool
+	// LocalVersion indicates the local version before sync.
+	LocalVersion int64
+	// RemoteVersion indicates the remote version before sync.
+	RemoteVersion int64
+	// NumItems returns the number of items processed, either read of written.
+	NumItems int64
 }
 
-func timeToEpoch(t time.Time) int64 {
-	if n := t.Unix()*1000 + int64(t.Nanosecond()/1e6); n > 0 {
-		return n
-	}
-	return 0
+func skipSync(srcVersion, targetVersion int64) bool {
+	return (srcVersion != 0 || targetVersion != 0) && srcVersion <= targetVersion
 }

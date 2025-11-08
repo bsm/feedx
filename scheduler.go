@@ -6,22 +6,28 @@ import (
 	"time"
 )
 
-// BeforeConsumeHook functions are run before consume jobs are finished.
-// Returning false will abort the consumer cycle.
-type BeforeConsumeHook func() bool
+// BeforeHook callbacks are run before jobs are started.
+// Returning false will abort the cycle.
+type BeforeHook func() bool
 
-// AfterConsumeHook functions are run after consume jobs are finished.
-type AfterConsumeHook func(*ConsumeStatus, error)
+// AfterHook callbacks are run after jobs have finished.
+type AfterHook func(*Status, error)
+
+// VersionCheck callbacks return the latest local version.
+type VersionCheck func(context.Context) (int64, error)
 
 // Scheduler runs cronjobs in regular intervals.
 type Scheduler struct {
-	ctx           context.Context
-	interval      time.Duration
-	readerOptions *ReaderOptions
+	ctx      context.Context
+	interval time.Duration
+
+	readerOpt    *ReaderOptions
+	writerOpt    *WriterOptions
+	versionCheck VersionCheck
 
 	// hooks
-	beforeConsume []BeforeConsumeHook
-	afterConsume  []AfterConsumeHook
+	beforeHooks []BeforeHook
+	afterHooks  []AfterHook
 }
 
 // Every creates a scheduler.
@@ -35,38 +41,100 @@ func (s *Scheduler) WithContext(ctx context.Context) *Scheduler {
 	return s
 }
 
+// BeforeSync adds custom before hooks.
+func (s *Scheduler) BeforeSync(hooks ...BeforeHook) *Scheduler {
+	s.beforeHooks = append(s.beforeHooks, hooks...)
+	return s
+}
+
+// AfterSync adds before hooks.
+func (s *Scheduler) AfterSync(hooks ...AfterHook) *Scheduler {
+	s.afterHooks = append(s.afterHooks, hooks...)
+	return s
+}
+
 // WithReaderOptions sets custom reader options for consumers.
 func (s *Scheduler) WithReaderOptions(opt *ReaderOptions) *Scheduler {
-	s.readerOptions = opt
+	s.readerOpt = opt
 	return s
 }
 
-// BeforeConsume adds custom hooks.
-func (s *Scheduler) BeforeConsume(hooks ...BeforeConsumeHook) *Scheduler {
-	s.beforeConsume = append(s.beforeConsume, hooks...)
-	return s
-}
-
-// AfterConsume adds custom hooks.
-func (s *Scheduler) AfterConsume(hooks ...AfterConsumeHook) *Scheduler {
-	s.afterConsume = append(s.afterConsume, hooks...)
-	return s
-}
-
-// Consume starts  consumer job.
+// Consume starts a consumer job.
 func (s *Scheduler) Consume(csm Consumer, cfn ConsumeFunc) *CronJob {
 	return newCronJob(s.ctx, s.interval, func(ctx context.Context) {
-		for _, hook := range s.beforeConsume {
+		for _, hook := range s.beforeHooks {
 			if !hook() {
 				return
 			}
 		}
 
-		status, err := csm.Consume(ctx, s.readerOptions, cfn)
-		for _, hook := range s.afterConsume {
+		status, err := csm.Consume(ctx, s.readerOpt, cfn)
+		for _, hook := range s.afterHooks {
 			hook(status, err)
 		}
 	})
+}
+
+// WithWriterOptions sets custom writer options for producers.
+func (s *Scheduler) WithWriterOptions(opt *WriterOptions) *Scheduler {
+	s.writerOpt = opt
+	return s
+}
+
+// WithVersionCheck sets a custom version check for producers.
+func (s *Scheduler) WithVersionCheck(fn VersionCheck) *Scheduler {
+	s.versionCheck = fn
+	return s
+}
+
+// Produce starts a producer job.
+func (s *Scheduler) Produce(pcr *Producer, pfn ProduceFunc) *CronJob {
+	return s.produce(func(ctx context.Context, version int64) (*Status, error) {
+		return pcr.Produce(ctx, version, s.writerOpt, pfn)
+	})
+}
+
+// ProduceIncrementally starts an incremental producer job.
+func (s *Scheduler) ProduceIncrementally(pcr *IncrementalProducer, pfn IncrementalProduceFunc) *CronJob {
+	return s.produce(func(ctx context.Context, version int64) (*Status, error) {
+		return pcr.Produce(ctx, version, s.writerOpt, pfn)
+	})
+}
+
+func (s *Scheduler) produce(fn func(context.Context, int64) (*Status, error)) *CronJob {
+	return newCronJob(s.ctx, s.interval, func(ctx context.Context) {
+		if !s.runBeforeHooks() {
+			return
+		}
+
+		var version int64
+		if s.versionCheck != nil {
+			latest, err := s.versionCheck(s.ctx)
+			if err != nil {
+				s.runAfterHooks(nil, err)
+				return
+			}
+			version = latest
+		}
+
+		status, err := fn(ctx, version)
+		s.runAfterHooks(status, err)
+	})
+}
+
+func (s *Scheduler) runBeforeHooks() bool {
+	for _, hook := range s.beforeHooks {
+		if !hook() {
+			return false
+		}
+	}
+	return true
+}
+
+func (s *Scheduler) runAfterHooks(status *Status, err error) {
+	for _, hook := range s.afterHooks {
+		hook(status, err)
+	}
 }
 
 // CronJob runs in regular intervals until it's stopped.
