@@ -39,7 +39,7 @@ type Writer struct {
 	ctx    context.Context
 	remote *bfs.Object
 	opt    WriterOptions
-	num    int
+	num    int64
 
 	bw bfs.Writer
 	cw io.WriteCloser // compression writer
@@ -101,7 +101,7 @@ func (w *Writer) Encode(v interface{}) error {
 }
 
 // NumWritten returns the number of written values.
-func (w *Writer) NumWritten() int {
+func (w *Writer) NumWritten() int64 {
 	return w.num
 }
 

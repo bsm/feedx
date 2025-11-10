@@ -8,18 +8,6 @@ import (
 	"github.com/bsm/bfs"
 )
 
-// ConsumeStatus is returned by Consumer instances.
-type ConsumeStatus struct {
-	// Skipped indicates the the sync was skipped, because there were no new changes.
-	Skipped bool
-	// Version indicates the current version of the remote feed.
-	Version int64
-	// PreviousVersion indicates the last known version to the consumer before the sync.
-	PreviousVersion int64
-	// NumRead returns the number of items read.
-	NumRead int64
-}
-
 // ConsumeFunc is a callback invoked by consumers.
 type ConsumeFunc func(context.Context, *Reader) error
 
@@ -28,7 +16,7 @@ type ConsumeFunc func(context.Context, *Reader) error
 type Consumer interface {
 	// Consume initiates a sync attempt. It will consume the remote feed only if it has changed since
 	// last invocation.
-	Consume(context.Context, *ReaderOptions, ConsumeFunc) (*ConsumeStatus, error)
+	Consume(context.Context, *ReaderOptions, ConsumeFunc) (*Status, error)
 
 	// Version indicates the most recently consumed version.
 	Version() int64
@@ -86,21 +74,21 @@ type consumer struct {
 }
 
 // Consume implements Consumer interface.
-func (c *consumer) Consume(ctx context.Context, opt *ReaderOptions, fn ConsumeFunc) (*ConsumeStatus, error) {
-	prevVersion := c.Version()
-	status := ConsumeStatus{
-		PreviousVersion: prevVersion,
+func (c *consumer) Consume(ctx context.Context, opt *ReaderOptions, fn ConsumeFunc) (*Status, error) {
+	localVersion := c.Version()
+	status := Status{
+		LocalVersion: localVersion,
 	}
 
 	// retrieve remote mtime
-	version, err := fetchRemoteVersion(ctx, c.remote)
+	remoteVersion, err := fetchRemoteVersion(ctx, c.remote)
 	if err != nil {
 		return nil, err
 	}
-	status.Version = version
+	status.RemoteVersion = remoteVersion
 
 	// skip sync unless modified
-	if prevVersion > 0 && prevVersion == version {
+	if skipSync(remoteVersion, localVersion) {
 		status.Skipped = true
 		return &status, nil
 	}
@@ -122,8 +110,8 @@ func (c *consumer) Consume(ctx context.Context, opt *ReaderOptions, fn ConsumeFu
 		return nil, err
 	}
 
-	status.NumRead = reader.NumRead()
-	c.version.Store(version)
+	status.NumItems = reader.NumRead()
+	c.version.Store(remoteVersion)
 	return &status, nil
 }
 
