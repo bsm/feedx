@@ -25,7 +25,7 @@ func TestScheduler(t *testing.T) {
 		defer pcr.Close()
 
 		job := feedx.Every(time.Millisecond).
-			BeforeSync(func() bool {
+			BeforeSync(func(_ int64) bool {
 				beforeCallbacks.Add(1)
 				return true
 			}).
@@ -82,7 +82,7 @@ func TestScheduler(t *testing.T) {
 		defer csm.Close()
 
 		job := feedx.Every(time.Millisecond).
-			BeforeSync(func() bool {
+			BeforeSync(func(_ int64) bool {
 				beforeCallbacks.Add(1)
 				return true
 			}).

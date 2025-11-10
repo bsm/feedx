@@ -6,9 +6,9 @@ import (
 	"time"
 )
 
-// BeforeHook callbacks are run before jobs are started.
-// Returning false will abort the cycle.
-type BeforeHook func() bool
+// BeforeHook callbacks are run before jobs are started. It receives the local
+// version before sync as an argument and may return false to abort the cycle.
+type BeforeHook func(version int64) bool
 
 // AfterHook callbacks are run after jobs have finished.
 type AfterHook func(*Status, error)
@@ -62,16 +62,13 @@ func (s *Scheduler) WithReaderOptions(opt *ReaderOptions) *Scheduler {
 // Consume starts a consumer job.
 func (s *Scheduler) Consume(csm Consumer, cfn ConsumeFunc) *CronJob {
 	return newCronJob(s.ctx, s.interval, func(ctx context.Context) {
-		for _, hook := range s.beforeHooks {
-			if !hook() {
-				return
-			}
+		version := csm.Version()
+		if !s.runBeforeHooks(version) {
+			return
 		}
 
 		status, err := csm.Consume(ctx, s.readerOpt, cfn)
-		for _, hook := range s.afterHooks {
-			hook(status, err)
-		}
+		s.runAfterHooks(status, err)
 	})
 }
 
@@ -103,18 +100,17 @@ func (s *Scheduler) ProduceIncrementally(pcr *IncrementalProducer, pfn Increment
 
 func (s *Scheduler) produce(fn func(context.Context, int64) (*Status, error)) *CronJob {
 	return newCronJob(s.ctx, s.interval, func(ctx context.Context) {
-		if !s.runBeforeHooks() {
-			return
-		}
-
 		var version int64
 		if s.versionCheck != nil {
 			latest, err := s.versionCheck(s.ctx)
 			if err != nil {
-				s.runAfterHooks(nil, err)
 				return
 			}
 			version = latest
+		}
+
+		if !s.runBeforeHooks(version) {
+			return
 		}
 
 		status, err := fn(ctx, version)
@@ -122,9 +118,9 @@ func (s *Scheduler) produce(fn func(context.Context, int64) (*Status, error)) *C
 	})
 }
 
-func (s *Scheduler) runBeforeHooks() bool {
+func (s *Scheduler) runBeforeHooks(version int64) bool {
 	for _, hook := range s.beforeHooks {
-		if !hook() {
+		if !hook(version) {
 			return false
 		}
 	}

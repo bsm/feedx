@@ -9,48 +9,50 @@ import (
 
 	"github.com/bsm/bfs"
 	"github.com/bsm/feedx"
+	"github.com/bsm/feedx/internal/testdata"
 )
 
-func ExampleConsumer() {
+type message = testdata.MockMessage
+
+func Example() {
 	ctx := context.TODO()
 
 	// create an mock object
 	obj := bfs.NewInMemObject("todos.ndjson")
 	defer obj.Close()
 
-	// seed some data
-	w, err := obj.Create(ctx, nil)
+	pcr := feedx.NewProducerForRemote(obj)
+	defer pcr.Close()
+
+	// produce
+	status, err := pcr.Produce(ctx, 101, nil, func(w *feedx.Writer) error {
+		return errors.Join(
+			w.Encode(&message{Name: "Jane", Height: 175}),
+			w.Encode(&message{Name: "Joe", Height: 172}),
+		)
+	})
 	if err != nil {
 		panic(err)
 	}
-	defer w.Discard()
 
-	if _, err := w.Write([]byte(`` +
-		`{"id":1,"title":"foo","completed":false}` + "\n" +
-		`{"id":2,"title":"bar","completed":false}` + "\n",
-	)); err != nil {
-		panic(err)
-	}
-	if err := w.Commit(); err != nil {
-		panic(err)
-	}
+	fmt.Printf("PRODUCED skipped:%v version:%v->%v items:%v\n", status.Skipped, status.LocalVersion, status.RemoteVersion, status.NumItems)
 
 	// create a consumer
 	csm := feedx.NewConsumerForRemote(obj)
 	defer csm.Close()
 
 	// consume data
-	var todos []map[string]any
-	status, err := csm.Consume(context.TODO(), nil, func(ctx context.Context, r *feedx.Reader) error {
+	var msgs []*message
+	status, err = csm.Consume(context.TODO(), nil, func(ctx context.Context, r *feedx.Reader) error {
 		for {
-			var todo map[string]any
-			if err := r.Decode(&todo); err != nil {
+			var msg message
+			if err := r.Decode(&msg); err != nil {
 				if errors.Is(err, io.EOF) {
 					break
 				}
 				return err
 			}
-			todos = append(todos, todo)
+			msgs = append(msgs, &msg)
 		}
 
 		return nil
@@ -59,15 +61,16 @@ func ExampleConsumer() {
 		panic(err)
 	}
 
-	fmt.Printf("STATUS skipped:%v version:%v read:%v\n", status.Skipped, status.RemoteVersion, status.NumItems)
-	fmt.Printf("DATA   %v\n", todos)
+	fmt.Printf("CONSUMED skipped:%v version:%v->%v items:%v\n", status.Skipped, status.LocalVersion, status.RemoteVersion, status.NumItems)
+	fmt.Printf("DATA     [%q, %q]\n", msgs[0].Name, msgs[1].Name)
 
 	// Output:
-	// STATUS skipped:false version:0 read:2
-	// DATA   [map[completed:false id:1 title:foo] map[completed:false id:2 title:bar]]
+	// PRODUCED skipped:false version:101->0 items:2
+	// CONSUMED skipped:false version:0->101 items:2
+	// DATA     ["Jane", "Joe"]
 }
 
-func ExampleScheduler() {
+func ExampleScheduler_Consume() {
 	ctx := context.TODO()
 
 	// create an mock object
@@ -80,21 +83,58 @@ func ExampleScheduler() {
 
 	job := feedx.Every(time.Hour).
 		WithContext(ctx).
-		BeforeSync(func() bool {
-			fmt.Println("[H] Before sync")
+		BeforeSync(func(_ int64) bool {
+			fmt.Println("1. Before sync")
 			return true
 		}).
 		AfterSync(func(_ *feedx.Status, err error) {
-			fmt.Printf("[H] After sync - error:%v", err)
+			fmt.Printf("3. After sync - error:%v", err)
 		}).
 		Consume(csm, func(_ context.Context, _ *feedx.Reader) error {
-			fmt.Println("[*] Consuming feed")
+			fmt.Println("2. Consuming feed")
 			return nil
 		})
 	job.Stop()
 
 	// Output:
-	// [H] Before sync
-	// [*] Consuming feed
-	// [H] After sync - error:<nil>
+	// 1. Before sync
+	// 2. Consuming feed
+	// 3. After sync - error:<nil>
+}
+
+func ExampleScheduler_Produce() {
+	ctx := context.TODO()
+
+	// create an mock object
+	obj := bfs.NewInMemObject("todos.ndjson")
+	defer obj.Close()
+
+	// create a producer
+	pcr := feedx.NewProducerForRemote(obj)
+	defer pcr.Close()
+
+	job := feedx.Every(time.Hour).
+		WithContext(ctx).
+		BeforeSync(func(_ int64) bool {
+			fmt.Println("2. Before sync")
+			return true
+		}).
+		AfterSync(func(_ *feedx.Status, err error) {
+			fmt.Printf("4. After sync - error:%v", err)
+		}).
+		WithVersionCheck(func(_ context.Context) (int64, error) {
+			fmt.Println("1. Retrieve latest version")
+			return 101, nil
+		}).
+		Produce(pcr, func(w *feedx.Writer) error {
+			fmt.Println("3. Producing feed")
+			return nil
+		})
+	job.Stop()
+
+	// Output:
+	// 1. Retrieve latest version
+	// 2. Before sync
+	// 3. Producing feed
+	// 4. After sync - error:<nil>
 }
