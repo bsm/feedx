@@ -9,7 +9,7 @@ import (
 )
 
 // ConsumeFunc is a callback invoked by consumers.
-type ConsumeFunc func(context.Context, *Reader) error
+type ConsumeFunc func(*Reader) error
 
 // Consumer manages data retrieval from a remote feed.
 // It queries the feed in regular intervals, continuously retrieving new updates.
@@ -106,7 +106,7 @@ func (c *consumer) Consume(ctx context.Context, opt *ReaderOptions, fn ConsumeFu
 	defer reader.Close()
 
 	// consume feed
-	if err := fn(ctx, reader); err != nil {
+	if err := fn(reader); err != nil {
 		return nil, err
 	}
 

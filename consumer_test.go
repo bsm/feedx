@@ -1,7 +1,6 @@
 package feedx_test
 
 import (
-	"context"
 	"reflect"
 	"testing"
 
@@ -134,7 +133,7 @@ func fixIncrementalConsumer(t *testing.T, version int64) feedx.Consumer {
 func testConsume(t *testing.T, csm feedx.Consumer, exp *feedx.Status) (msgs []*testdata.MockMessage) {
 	t.Helper()
 
-	status, err := csm.Consume(t.Context(), nil, func(ctx context.Context, r *feedx.Reader) (err error) {
+	status, err := csm.Consume(t.Context(), nil, func(r *feedx.Reader) (err error) {
 		msgs, err = readMessages(r)
 		return err
 	})
