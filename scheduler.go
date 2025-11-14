@@ -60,15 +60,16 @@ func (s *Scheduler) WithReaderOptions(opt *ReaderOptions) *Scheduler {
 }
 
 // Consume starts a consumer job.
-func (s *Scheduler) Consume(csm Consumer, cfn ConsumeFunc) *CronJob {
-	return newCronJob(s.ctx, s.interval, func(ctx context.Context) {
+func (s *Scheduler) Consume(csm Consumer, cfn ConsumeFunc) (*CronJob, error) {
+	return newCronJob(s.ctx, s.interval, func(ctx context.Context) error {
 		version := csm.Version()
 		if !s.runBeforeHooks(version) {
-			return
+			return nil
 		}
 
 		status, err := csm.Consume(ctx, s.readerOpt, cfn)
 		s.runAfterHooks(status, err)
+		return err
 	})
 }
 
@@ -85,36 +86,38 @@ func (s *Scheduler) WithVersionCheck(fn VersionCheck) *Scheduler {
 }
 
 // Produce starts a producer job.
-func (s *Scheduler) Produce(pcr *Producer, pfn ProduceFunc) *CronJob {
+func (s *Scheduler) Produce(pcr *Producer, pfn ProduceFunc) (*CronJob, error) {
 	return s.produce(func(ctx context.Context, version int64) (*Status, error) {
 		return pcr.Produce(ctx, version, s.writerOpt, pfn)
 	})
 }
 
 // ProduceIncrementally starts an incremental producer job.
-func (s *Scheduler) ProduceIncrementally(pcr *IncrementalProducer, pfn IncrementalProduceFunc) *CronJob {
+func (s *Scheduler) ProduceIncrementally(pcr *IncrementalProducer, pfn IncrementalProduceFunc) (*CronJob, error) {
 	return s.produce(func(ctx context.Context, version int64) (*Status, error) {
 		return pcr.Produce(ctx, version, s.writerOpt, pfn)
 	})
 }
 
-func (s *Scheduler) produce(fn func(context.Context, int64) (*Status, error)) *CronJob {
-	return newCronJob(s.ctx, s.interval, func(ctx context.Context) {
+func (s *Scheduler) produce(fn func(context.Context, int64) (*Status, error)) (*CronJob, error) {
+	return newCronJob(s.ctx, s.interval, func(ctx context.Context) error {
 		var version int64
 		if s.versionCheck != nil {
 			latest, err := s.versionCheck(s.ctx)
 			if err != nil {
-				return
+				s.runAfterHooks(nil, err)
+				return err
 			}
 			version = latest
 		}
 
 		if !s.runBeforeHooks(version) {
-			return
+			return nil
 		}
 
 		status, err := fn(ctx, version)
 		s.runAfterHooks(status, err)
+		return err
 	})
 }
 
@@ -135,22 +138,21 @@ func (s *Scheduler) runAfterHooks(status *Status, err error) {
 
 // CronJob runs in regular intervals until it's stopped.
 type CronJob struct {
-	ctx      context.Context
 	cancel   context.CancelFunc
 	interval time.Duration
-	perform  func(context.Context)
+	perform  func(context.Context) error
 	wait     sync.WaitGroup
 }
 
-func newCronJob(ctx context.Context, interval time.Duration, perform func(context.Context)) *CronJob {
+func newCronJob(ctx context.Context, interval time.Duration, perform func(context.Context) error) (*CronJob, error) {
+	if err := perform(ctx); err != nil {
+		return nil, err
+	}
+
 	ctx, cancel := context.WithCancel(ctx)
-
-	job := &CronJob{ctx: ctx, cancel: cancel, interval: interval, perform: perform}
-	job.perform(ctx) // perform immediately
-
-	job.wait.Add(1)
-	go job.loop()
-	return job
+	job := &CronJob{cancel: cancel, interval: interval, perform: perform}
+	go job.loop(ctx)
+	return job, nil
 }
 
 // Stop stops the job and waits until it is complete.
@@ -159,7 +161,8 @@ func (j *CronJob) Stop() {
 	j.wait.Wait()
 }
 
-func (j *CronJob) loop() {
+func (j *CronJob) loop(ctx context.Context) {
+	j.wait.Add(1)
 	defer j.wait.Done()
 
 	ticker := time.NewTicker(j.interval)
@@ -167,10 +170,10 @@ func (j *CronJob) loop() {
 
 	for {
 		select {
-		case <-j.ctx.Done():
+		case <-ctx.Done():
 			return
 		case <-ticker.C:
-			j.perform(j.ctx)
+			_ = j.perform(ctx)
 		}
 	}
 }

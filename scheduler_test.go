@@ -2,6 +2,7 @@ package feedx_test
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"sync/atomic"
 	"testing"
@@ -17,14 +18,23 @@ func TestScheduler(t *testing.T) {
 	numCycles := new(atomic.Int32)
 	numErrors := new(atomic.Int32)
 
+	resetCounters := func() {
+		beforeCallbacks.Store(0)
+		afterCallbacks.Store(0)
+		numCycles.Store(0)
+		numErrors.Store(0)
+	}
+
 	obj := bfs.NewInMemObject("file.json")
 	defer obj.Close()
 
 	t.Run("produce", func(t *testing.T) {
+		resetCounters()
+
 		pcr := feedx.NewProducerForRemote(obj)
 		defer pcr.Close()
 
-		job := feedx.Every(time.Millisecond).
+		job, err := feedx.Every(time.Millisecond).
 			BeforeSync(func(_ int64) bool {
 				beforeCallbacks.Add(1)
 				return true
@@ -45,6 +55,9 @@ func TestScheduler(t *testing.T) {
 				}
 				return nil
 			})
+		if err != nil {
+			t.Fatal("unexpected error", err)
+		}
 
 		time.Sleep(5 * time.Millisecond)
 		job.Stop()
@@ -71,17 +84,29 @@ func TestScheduler(t *testing.T) {
 		}
 	})
 
-	beforeCallbacks.Store(0)
-	afterCallbacks.Store(0)
-	numCycles.Store(0)
-	numErrors.Store(0)
+	t.Run("produce may fail", func(t *testing.T) {
+		resetCounters()
+
+		pcr := feedx.NewProducerForRemote(obj)
+		defer pcr.Close()
+
+		exp := fmt.Errorf("failed!")
+		_, err := feedx.Every(time.Millisecond).
+			Produce(pcr, func(w *feedx.Writer) error {
+				return exp
+			})
+		if !errors.Is(err, exp) {
+			t.Errorf("expected %v, got %v", exp, err)
+		}
+	})
 
 	t.Run("consume", func(t *testing.T) {
+		resetCounters()
 
 		csm := feedx.NewConsumerForRemote(obj)
 		defer csm.Close()
 
-		job := feedx.Every(time.Millisecond).
+		job, err := feedx.Every(time.Millisecond).
 			BeforeSync(func(_ int64) bool {
 				beforeCallbacks.Add(1)
 				return true
@@ -93,12 +118,15 @@ func TestScheduler(t *testing.T) {
 					numErrors.Add(1)
 				}
 			}).
-			Consume(csm, func(ctx context.Context, r *feedx.Reader) error {
+			Consume(csm, func(r *feedx.Reader) error {
 				if numCycles.Add(1)%2 == 0 {
 					return fmt.Errorf("failed!")
 				}
 				return nil
 			})
+		if err != nil {
+			t.Fatal("unexpected error", err)
+		}
 
 		time.Sleep(5 * time.Millisecond)
 		job.Stop()
@@ -125,4 +153,19 @@ func TestScheduler(t *testing.T) {
 		}
 	})
 
+	t.Run("consume may fail", func(t *testing.T) {
+		resetCounters()
+
+		csm := feedx.NewConsumerForRemote(obj)
+		defer csm.Close()
+
+		exp := fmt.Errorf("failed!")
+		_, err := feedx.Every(time.Millisecond).
+			Consume(csm, func(r *feedx.Reader) error {
+				return exp
+			})
+		if !errors.Is(err, exp) {
+			t.Errorf("expected %v, got %v", exp, err)
+		}
+	})
 }

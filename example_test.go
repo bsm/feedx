@@ -43,7 +43,7 @@ func Example() {
 
 	// consume data
 	var msgs []*message
-	status, err = csm.Consume(context.TODO(), nil, func(ctx context.Context, r *feedx.Reader) error {
+	status, err = csm.Consume(context.TODO(), nil, func(r *feedx.Reader) error {
 		for {
 			var msg message
 			if err := r.Decode(&msg); err != nil {
@@ -81,7 +81,7 @@ func ExampleScheduler_Consume() {
 	csm := feedx.NewConsumerForRemote(obj)
 	defer csm.Close()
 
-	job := feedx.Every(time.Hour).
+	job, err := feedx.Every(time.Hour).
 		WithContext(ctx).
 		BeforeSync(func(_ int64) bool {
 			fmt.Println("1. Before sync")
@@ -90,10 +90,14 @@ func ExampleScheduler_Consume() {
 		AfterSync(func(_ *feedx.Status, err error) {
 			fmt.Printf("3. After sync - error:%v", err)
 		}).
-		Consume(csm, func(_ context.Context, _ *feedx.Reader) error {
+		Consume(csm, func(_ *feedx.Reader) error {
 			fmt.Println("2. Consuming feed")
 			return nil
 		})
+	if err != nil {
+		panic(err)
+	}
+
 	job.Stop()
 
 	// Output:
@@ -113,7 +117,7 @@ func ExampleScheduler_Produce() {
 	pcr := feedx.NewProducerForRemote(obj)
 	defer pcr.Close()
 
-	job := feedx.Every(time.Hour).
+	job, err := feedx.Every(time.Hour).
 		WithContext(ctx).
 		BeforeSync(func(_ int64) bool {
 			fmt.Println("2. Before sync")
@@ -130,6 +134,10 @@ func ExampleScheduler_Produce() {
 			fmt.Println("3. Producing feed")
 			return nil
 		})
+	if err != nil {
+		panic(err)
+	}
+
 	job.Stop()
 
 	// Output:
