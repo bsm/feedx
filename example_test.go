@@ -70,7 +70,7 @@ func Example() {
 	// DATA     ["Jane", "Joe"]
 }
 
-func ExampleScheduler_Consume() {
+func ExampleScheduler_ConsumeWith() {
 	ctx := context.TODO()
 
 	// create an mock object
@@ -90,7 +90,7 @@ func ExampleScheduler_Consume() {
 		AfterSync(func(_ *feedx.Status, err error) {
 			fmt.Printf("3. After sync - error:%v", err)
 		}).
-		Consume(csm, func(_ *feedx.Reader) error {
+		ConsumeWith(csm, func(_ *feedx.Reader) error {
 			fmt.Println("2. Consuming feed")
 			return nil
 		})
@@ -106,7 +106,7 @@ func ExampleScheduler_Consume() {
 	// 3. After sync - error:<nil>
 }
 
-func ExampleScheduler_Produce() {
+func ExampleScheduler_ProduceWith() {
 	ctx := context.TODO()
 
 	// create an mock object
@@ -130,7 +130,7 @@ func ExampleScheduler_Produce() {
 			fmt.Println("1. Retrieve latest version")
 			return 101, nil
 		}).
-		Produce(pcr, func(w *feedx.Writer) error {
+		ProduceWith(pcr, func(w *feedx.Writer) error {
 			fmt.Println("3. Producing feed")
 			return nil
 		})

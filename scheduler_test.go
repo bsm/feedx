@@ -49,7 +49,7 @@ func TestScheduler(t *testing.T) {
 			WithVersionCheck(func(_ context.Context) (int64, error) {
 				return 101, nil
 			}).
-			Produce(pcr, func(w *feedx.Writer) error {
+			ProduceWith(pcr, func(w *feedx.Writer) error {
 				if numCycles.Add(1)%2 == 0 {
 					return fmt.Errorf("failed!")
 				}
@@ -92,7 +92,7 @@ func TestScheduler(t *testing.T) {
 
 		exp := fmt.Errorf("failed!")
 		_, err := feedx.Every(time.Millisecond).
-			Produce(pcr, func(w *feedx.Writer) error {
+			ProduceWith(pcr, func(w *feedx.Writer) error {
 				return exp
 			})
 		if !errors.Is(err, exp) {
@@ -118,7 +118,7 @@ func TestScheduler(t *testing.T) {
 					numErrors.Add(1)
 				}
 			}).
-			Consume(csm, func(r *feedx.Reader) error {
+			ConsumeWith(csm, func(r *feedx.Reader) error {
 				if numCycles.Add(1)%2 == 0 {
 					return fmt.Errorf("failed!")
 				}
@@ -161,7 +161,7 @@ func TestScheduler(t *testing.T) {
 
 		exp := fmt.Errorf("failed!")
 		_, err := feedx.Every(time.Millisecond).
-			Consume(csm, func(r *feedx.Reader) error {
+			ConsumeWith(csm, func(r *feedx.Reader) error {
 				return exp
 			})
 		if !errors.Is(err, exp) {

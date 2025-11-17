@@ -2,6 +2,7 @@ package feedx
 
 import (
 	"context"
+	"io"
 	"sync"
 	"time"
 )
@@ -60,7 +61,19 @@ func (s *Scheduler) WithReaderOptions(opt *ReaderOptions) *Scheduler {
 }
 
 // Consume starts a consumer job.
-func (s *Scheduler) Consume(csm Consumer, cfn ConsumeFunc) (*CronJob, error) {
+func (s *Scheduler) Consume(ctx context.Context, remoteURL string, cfn ConsumeFunc) (*CronJob, error) {
+	csm, err := NewConsumer(ctx, remoteURL)
+	if err != nil {
+		return nil, err
+	}
+
+	return s.withClosable(csm, func() (*CronJob, error) {
+		return s.ConsumeWith(csm, cfn)
+	})
+}
+
+// ConsumeWith starts a consumer job with an existing consumer.
+func (s *Scheduler) ConsumeWith(csm Consumer, cfn ConsumeFunc) (*CronJob, error) {
 	return newCronJob(s.ctx, s.interval, func(ctx context.Context) error {
 		version := csm.Version()
 		if !s.runBeforeHooks(version) {
@@ -86,14 +99,38 @@ func (s *Scheduler) WithVersionCheck(fn VersionCheck) *Scheduler {
 }
 
 // Produce starts a producer job.
-func (s *Scheduler) Produce(pcr *Producer, pfn ProduceFunc) (*CronJob, error) {
+func (s *Scheduler) Produce(ctx context.Context, remoteURL string, pfn ProduceFunc) (*CronJob, error) {
+	pcr, err := NewProducer(ctx, remoteURL)
+	if err != nil {
+		return nil, err
+	}
+
+	return s.withClosable(pcr, func() (*CronJob, error) {
+		return s.ProduceWith(pcr, pfn)
+	})
+}
+
+// Produce starts an incremental producer job.
+func (s *Scheduler) ProduceIncrementally(ctx context.Context, remoteURL string, pfn IncrementalProduceFunc) (*CronJob, error) {
+	pcr, err := NewIncrementalProducer(ctx, remoteURL)
+	if err != nil {
+		return nil, err
+	}
+
+	return s.withClosable(pcr, func() (*CronJob, error) {
+		return s.ProduceIncrementallyWith(pcr, pfn)
+	})
+}
+
+// ProduceWith starts a producer job with an existing producer.
+func (s *Scheduler) ProduceWith(pcr *Producer, pfn ProduceFunc) (*CronJob, error) {
 	return s.produce(func(ctx context.Context, version int64) (*Status, error) {
 		return pcr.Produce(ctx, version, s.writerOpt, pfn)
 	})
 }
 
-// ProduceIncrementally starts an incremental producer job.
-func (s *Scheduler) ProduceIncrementally(pcr *IncrementalProducer, pfn IncrementalProduceFunc) (*CronJob, error) {
+// ProduceIncrementallyFrom starts an incremental producer job with an existing producer.
+func (s *Scheduler) ProduceIncrementallyWith(pcr *IncrementalProducer, pfn IncrementalProduceFunc) (*CronJob, error) {
 	return s.produce(func(ctx context.Context, version int64) (*Status, error) {
 		return pcr.Produce(ctx, version, s.writerOpt, pfn)
 	})
@@ -136,8 +173,20 @@ func (s *Scheduler) runAfterHooks(status *Status, err error) {
 	}
 }
 
+func (s *Scheduler) withClosable(closable io.Closer, init func() (*CronJob, error)) (*CronJob, error) {
+	job, err := init()
+	if err != nil {
+		_ = closable.Close()
+		return nil, err
+	}
+
+	job.closable = closable
+	return job, err
+}
+
 // CronJob runs in regular intervals until it's stopped.
 type CronJob struct {
+	closable io.Closer
 	cancel   context.CancelFunc
 	interval time.Duration
 	perform  func(context.Context) error
