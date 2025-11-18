@@ -60,7 +60,9 @@ func TestScheduler(t *testing.T) {
 		}
 
 		time.Sleep(5 * time.Millisecond)
-		job.Stop()
+		if err := job.Close(); err != nil {
+			t.Fatal("unexpected error", err)
+		}
 		time.Sleep(2 * time.Millisecond)
 
 		ranTimes := numCycles.Load()
@@ -129,7 +131,9 @@ func TestScheduler(t *testing.T) {
 		}
 
 		time.Sleep(5 * time.Millisecond)
-		job.Stop()
+		if err := job.Close(); err != nil {
+			t.Fatal("unexpected error", err)
+		}
 		time.Sleep(2 * time.Millisecond)
 
 		ranTimes := numCycles.Load()

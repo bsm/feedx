@@ -204,10 +204,17 @@ func newCronJob(ctx context.Context, interval time.Duration, perform func(contex
 	return job, nil
 }
 
-// Stop stops the job and waits until it is complete.
-func (j *CronJob) Stop() {
+// Close stops the job and waits until it is complete.
+func (j *CronJob) Close() error {
 	j.cancel()
 	j.wait.Wait()
+
+	if j.closable != nil {
+		err := j.closable.Close()
+		j.closable = nil
+		return err
+	}
+	return nil
 }
 
 func (j *CronJob) loop(ctx context.Context) {
