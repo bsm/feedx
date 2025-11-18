@@ -98,7 +98,7 @@ func ExampleScheduler_ConsumeWith() {
 		panic(err)
 	}
 
-	job.Stop()
+	_ = job.Close()
 
 	// Output:
 	// 1. Before sync
@@ -138,7 +138,7 @@ func ExampleScheduler_ProduceWith() {
 		panic(err)
 	}
 
-	job.Stop()
+	_ = job.Close()
 
 	// Output:
 	// 1. Retrieve latest version
