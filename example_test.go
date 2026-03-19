@@ -171,7 +171,7 @@ func ExampleCronJob() {
 			})
 
 		})
-	defer cron.Close()
+	defer func() { _ = cron.Close() }()
 
 	time.Sleep(4 * time.Millisecond)
 
