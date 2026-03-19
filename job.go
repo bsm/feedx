@@ -108,12 +108,9 @@ func (j *Job) Consume(ctx context.Context, remoteURL string, cfn ConsumeFunc) (*
 
 // ConsumeWith starts a consumer job with an existing consumer.
 func (j *Job) ConsumeWith(ctx context.Context, csm Consumer, cfn ConsumeFunc) (*Status, error) {
-	version := csm.Version()
-	if !j.runBeforeHooks(version) {
-		return &Status{Skipped: true, LocalVersion: version}, nil
-	}
-
-	return j.runWithAfterHooks(csm.Consume(ctx, j.readerOpt, cfn))
+	return j.runWithHooks(csm.Version(), func() (*Status, error) {
+		return csm.Consume(ctx, j.readerOpt, cfn)
+	})
 }
 
 // RunEvery schedules the Job to run every interval and returns a CronJob.
@@ -131,23 +128,19 @@ func (j *Job) produce(ctx context.Context, fn func(context.Context, int64) (*Sta
 		version = latest
 	}
 
-	if !j.runBeforeHooks(version) {
-		return &Status{Skipped: true, LocalVersion: version}, nil
-	}
-
-	return j.runWithAfterHooks(fn(ctx, version))
+	return j.runWithHooks(version, func() (*Status, error) {
+		return fn(ctx, version)
+	})
 }
 
-func (j *Job) runBeforeHooks(version int64) bool {
+func (j *Job) runWithHooks(localVersion int64, fn func() (*Status, error)) (*Status, error) {
 	for _, hook := range j.beforeHooks {
-		if !hook(version) {
-			return false
+		if !hook(localVersion) {
+			return &Status{Skipped: true, LocalVersion: localVersion}, nil
 		}
 	}
-	return true
-}
 
-func (j *Job) runWithAfterHooks(status *Status, err error) (*Status, error) {
+	status, err := fn()
 	for _, hook := range j.afterHooks {
 		hook(status, err)
 	}
