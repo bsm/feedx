@@ -70,7 +70,7 @@ func Example() {
 	// DATA     ["Jane", "Joe"]
 }
 
-func ExampleScheduler_ConsumeWith() {
+func ExampleJob_ConsumeWith() {
 	ctx := context.TODO()
 
 	// create an mock object
@@ -81,32 +81,31 @@ func ExampleScheduler_ConsumeWith() {
 	csm := feedx.NewConsumerForRemote(obj)
 	defer csm.Close()
 
-	job, err := feedx.Every(time.Hour).
-		WithContext(ctx).
+	status, err := feedx.NewJob().
 		BeforeSync(func(_ int64) bool {
 			fmt.Println("1. Before sync")
 			return true
 		}).
 		AfterSync(func(_ *feedx.Status, err error) {
-			fmt.Printf("3. After sync - error:%v", err)
+			fmt.Printf("3. After sync - error:%v\n", err)
 		}).
-		ConsumeWith(csm, func(_ *feedx.Reader) error {
+		ConsumeWith(ctx, csm, func(_ *feedx.Reader) error {
 			fmt.Println("2. Consuming feed")
 			return nil
 		})
 	if err != nil {
 		panic(err)
 	}
-
-	_ = job.Close()
+	fmt.Printf("4. Result - %+v\n", *status)
 
 	// Output:
 	// 1. Before sync
 	// 2. Consuming feed
 	// 3. After sync - error:<nil>
+	// 4. Result - {Skipped:false LocalVersion:0 RemoteVersion:0 NumItems:0}
 }
 
-func ExampleScheduler_ProduceWith() {
+func ExampleJob_ProduceWith() {
 	ctx := context.TODO()
 
 	// create an mock object
@@ -117,32 +116,67 @@ func ExampleScheduler_ProduceWith() {
 	pcr := feedx.NewProducerForRemote(obj)
 	defer pcr.Close()
 
-	job, err := feedx.Every(time.Hour).
-		WithContext(ctx).
+	status, err := feedx.NewJob().
 		BeforeSync(func(_ int64) bool {
 			fmt.Println("2. Before sync")
 			return true
 		}).
 		AfterSync(func(_ *feedx.Status, err error) {
-			fmt.Printf("4. After sync - error:%v", err)
+			fmt.Printf("4. After sync - error:%v\n", err)
 		}).
 		WithVersionCheck(func(_ context.Context) (int64, error) {
 			fmt.Println("1. Retrieve latest version")
 			return 101, nil
 		}).
-		ProduceWith(pcr, func(w *feedx.Writer) error {
+		ProduceWith(ctx, pcr, func(w *feedx.Writer) error {
 			fmt.Println("3. Producing feed")
 			return nil
 		})
 	if err != nil {
 		panic(err)
 	}
-
-	_ = job.Close()
+	fmt.Printf("5. Result - %+v\n", *status)
 
 	// Output:
 	// 1. Retrieve latest version
 	// 2. Before sync
 	// 3. Producing feed
 	// 4. After sync - error:<nil>
+	// 5. Result - {Skipped:false LocalVersion:101 RemoteVersion:0 NumItems:0}
+}
+
+func ExampleCronJob() {
+	ctx := context.TODO()
+
+	// create an mock object
+	obj := bfs.NewInMemObject("todos.ndjson")
+	defer obj.Close()
+
+	// create a consumer
+	csm := feedx.NewConsumerForRemote(obj)
+	defer csm.Close()
+
+	cron := feedx.NewJob().
+		BeforeSync(func(_ int64) bool {
+			fmt.Println("1. Before sync")
+			return true
+		}).
+		AfterSync(func(_ *feedx.Status, err error) {
+			fmt.Printf("3. After sync - error:%v\n", err)
+		}).
+		RunEvery(3*time.Millisecond, func(job *feedx.Job) (*feedx.Status, error) {
+			return job.ConsumeWith(ctx, csm, func(_ *feedx.Reader) error {
+				fmt.Println("2. Consuming feed")
+				return nil
+			})
+
+		})
+	defer cron.Close()
+
+	time.Sleep(4 * time.Millisecond)
+
+	// Output:
+	// 1. Before sync
+	// 2. Consuming feed
+	// 3. After sync - error:<nil>
 }
