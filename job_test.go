@@ -26,8 +26,7 @@ func TestJob(t *testing.T) {
 		numErrors.Store(0)
 	}
 
-	ctx := context.Background()
-
+	ctx := t.Context()
 	obj := bfs.NewInMemObject("file.json")
 	defer obj.Close()
 
